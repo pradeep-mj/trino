@@ -17,13 +17,11 @@ import io.airlift.testing.EquivalenceTester;
 import org.testng.annotations.Test;
 
 import static io.trino.plugin.bios.MetadataUtil.COLUMN_CODEC;
-import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static org.testng.Assert.assertEquals;
 
 public class TestBiosColumnHandle
 {
-    private final BiosColumnHandle columnHandle = new BiosColumnHandle("columnName", createUnboundedVarcharType(), 0);
+    private final BiosColumnHandle columnHandle = new BiosColumnHandle("columnName");
 
     @Test
     public void testJsonRoundTrip()
@@ -38,13 +36,13 @@ public class TestBiosColumnHandle
     {
         EquivalenceTester.equivalenceTester()
                 .addEquivalentGroup(
-                        new BiosColumnHandle("columnName", createUnboundedVarcharType(), 0),
-                        new BiosColumnHandle("columnName", BIGINT, 0),
-                        new BiosColumnHandle("columnName", createUnboundedVarcharType(), 1))
+                        new BiosColumnHandle("columnName"),
+                        new BiosColumnHandle("columnName"),
+                        new BiosColumnHandle("columnName"))
                 .addEquivalentGroup(
-                        new BiosColumnHandle("columnNameX", createUnboundedVarcharType(), 0),
-                        new BiosColumnHandle("columnNameX", BIGINT, 0),
-                        new BiosColumnHandle("columnNameX", createUnboundedVarcharType(), 1))
+                        new BiosColumnHandle("columnNameX"),
+                        new BiosColumnHandle("columnNameX"),
+                        new BiosColumnHandle("columnNameX"))
                 .check();
     }
 }

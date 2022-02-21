@@ -19,19 +19,19 @@ import org.testng.annotations.Test;
 
 import static io.trino.plugin.bios.MetadataUtil.TABLE_CODEC;
 import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static org.testng.Assert.assertEquals;
 
 public class TestBiosTable
 {
-    private final BiosTable biosTable = new BiosTable("tableName");
+    private final BiosTable biosTable = new BiosTable(BiosTableKind.SIGNAL, "tableName");
 
     @Test
     public void testColumnMetadata()
     {
         assertEquals(biosTable.getColumnsMetadata(), ImmutableList.of(
-                new ColumnMetadata("a", createUnboundedVarcharType()),
-                new ColumnMetadata("b", BIGINT)));
+                new ColumnMetadata("dummyString", BIGINT),
+                // new ColumnMetadata("a", createUnboundedVarcharType()),
+                new ColumnMetadata("dummyInt", BIGINT)));
     }
 
     @Test

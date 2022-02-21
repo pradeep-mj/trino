@@ -24,11 +24,11 @@ import io.trino.spi.connector.TableNotFoundException;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.net.URI;
 import java.util.Optional;
 
 import static io.trino.plugin.bios.MetadataUtil.CATALOG_CODEC;
 import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static io.trino.testing.TestingConnectorSession.SESSION;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.testng.Assert.assertEquals;
@@ -37,45 +37,50 @@ import static org.testng.Assert.assertNull;
 @Test(singleThreaded = true)
 public class TestBiosMetadata
 {
-    private static final BiosTableHandle NUMBERS_TABLE_HANDLE = new BiosTableHandle("bios", "numbers");
+    private static final BiosTableHandle TABLE_HANDLE_1 = new BiosTableHandle("signal", "signal1");
     private BiosMetadata metadata;
 
     @BeforeMethod
     public void setUp()
             throws Exception
     {
-        BiosClient client = new BiosClient(new BiosConfig().setUrl(null), CATALOG_CODEC);
+        BiosConfig config = new BiosConfig().setUrl(new URI("https://load.tieredfractals.com"));
+        config.setEmail("dummy@a.com");
+        config.setPassword("dummy");
+        BiosClient client = new BiosClient(config, CATALOG_CODEC);
         metadata = new BiosMetadata(client);
     }
 
     @Test
     public void testListSchemaNames()
     {
-        assertEquals(metadata.listSchemaNames(SESSION), ImmutableSet.of("bios", "tpch"));
+        assertEquals(metadata.listSchemaNames(SESSION), ImmutableSet.of("context", "signal"));
     }
 
     @Test
     public void testGetTableHandle()
     {
-        assertEquals(metadata.getTableHandle(SESSION, new SchemaTableName("bios", "numbers")), NUMBERS_TABLE_HANDLE);
-        assertNull(metadata.getTableHandle(SESSION, new SchemaTableName("bios", "unknown")));
-        assertNull(metadata.getTableHandle(SESSION, new SchemaTableName("unknown", "numbers")));
+        assertEquals(metadata.getTableHandle(SESSION, new SchemaTableName("signal", "signal1")),
+                TABLE_HANDLE_1);
+        assertNull(metadata.getTableHandle(SESSION, new SchemaTableName("signal", "unknown")));
+        assertNull(metadata.getTableHandle(SESSION, new SchemaTableName("unknown", "signal1")));
+        assertNull(metadata.getTableHandle(SESSION, new SchemaTableName("context", "signal1")));
         assertNull(metadata.getTableHandle(SESSION, new SchemaTableName("unknown", "unknown")));
     }
 
-    @Test
+    @Test(enabled = false)
     public void testGetColumnHandles()
     {
         // known table
-        assertEquals(metadata.getColumnHandles(SESSION, NUMBERS_TABLE_HANDLE), ImmutableMap.of(
-                "text", new BiosColumnHandle("text", createUnboundedVarcharType(), 0),
-                "value", new BiosColumnHandle("value", BIGINT, 1)));
+        assertEquals(metadata.getColumnHandles(SESSION, TABLE_HANDLE_1), ImmutableMap.of(
+                "dummyString", new BiosColumnHandle("dummyString"),
+                "dummyInt", new BiosColumnHandle("dummyInt")));
 
         // unknown table
         assertThatThrownBy(() -> metadata.getColumnHandles(SESSION, new BiosTableHandle("unknown", "unknown")))
                 .isInstanceOf(TableNotFoundException.class)
                 .hasMessage("Table 'unknown.unknown' not found");
-        assertThatThrownBy(() -> metadata.getColumnHandles(SESSION, new BiosTableHandle("bios", "unknown")))
+        assertThatThrownBy(() -> metadata.getColumnHandles(SESSION, new BiosTableHandle("signal", "unknown")))
                 .isInstanceOf(TableNotFoundException.class)
                 .hasMessage("Table 'bios.unknown' not found");
     }
@@ -84,16 +89,18 @@ public class TestBiosMetadata
     public void getTableMetadata()
     {
         // known table
-        ConnectorTableMetadata tableMetadata = metadata.getTableMetadata(SESSION, NUMBERS_TABLE_HANDLE);
-        assertEquals(tableMetadata.getTable(), new SchemaTableName("bios", "numbers"));
+        ConnectorTableMetadata tableMetadata = metadata.getTableMetadata(SESSION, TABLE_HANDLE_1);
+        assertEquals(tableMetadata.getTable(), new SchemaTableName("signal", "signal1"));
         assertEquals(tableMetadata.getColumns(), ImmutableList.of(
-                new ColumnMetadata("text", createUnboundedVarcharType()),
-                new ColumnMetadata("value", BIGINT)));
+                new ColumnMetadata("dummyString", BIGINT),
+                // new ColumnMetadata("dummyString", createUnboundedVarcharType()),
+                new ColumnMetadata("dummyInt", BIGINT)));
 
         // unknown tables should produce null
+        assertNull(metadata.getTableMetadata(SESSION, new BiosTableHandle("signal", "unknown")));
+        assertNull(metadata.getTableMetadata(SESSION, new BiosTableHandle("unknown", "signal1")));
+        assertNull(metadata.getTableMetadata(SESSION, new BiosTableHandle("context", "signal1")));
         assertNull(metadata.getTableMetadata(SESSION, new BiosTableHandle("unknown", "unknown")));
-        assertNull(metadata.getTableMetadata(SESSION, new BiosTableHandle("bios", "unknown")));
-        assertNull(metadata.getTableMetadata(SESSION, new BiosTableHandle("unknown", "numbers")));
     }
 
     @Test
@@ -101,16 +108,14 @@ public class TestBiosMetadata
     {
         // all schemas
         assertEquals(ImmutableSet.copyOf(metadata.listTables(SESSION, Optional.empty())), ImmutableSet.of(
-                new SchemaTableName("bios", "numbers"),
-                new SchemaTableName("tpch", "orders"),
-                new SchemaTableName("tpch", "lineitem")));
+                new SchemaTableName("signal", "signal1"),
+                new SchemaTableName("context", "context1")));
 
         // specific schema
-        assertEquals(ImmutableSet.copyOf(metadata.listTables(SESSION, Optional.of("bios"))), ImmutableSet.of(
-                new SchemaTableName("bios", "numbers")));
-        assertEquals(ImmutableSet.copyOf(metadata.listTables(SESSION, Optional.of("tpch"))), ImmutableSet.of(
-                new SchemaTableName("tpch", "orders"),
-                new SchemaTableName("tpch", "lineitem")));
+        assertEquals(ImmutableSet.copyOf(metadata.listTables(SESSION, Optional.of("signal"))), ImmutableSet.of(
+                new SchemaTableName("signal", "signal1")));
+        assertEquals(ImmutableSet.copyOf(metadata.listTables(SESSION, Optional.of("context"))), ImmutableSet.of(
+                new SchemaTableName("context", "context1")));
 
         // unknown schema
         assertEquals(ImmutableSet.copyOf(metadata.listTables(SESSION, Optional.of("unknown"))), ImmutableSet.of());
@@ -119,8 +124,10 @@ public class TestBiosMetadata
     @Test
     public void getColumnMetadata()
     {
-        assertEquals(metadata.getColumnMetadata(SESSION, NUMBERS_TABLE_HANDLE, new BiosColumnHandle("text", createUnboundedVarcharType(), 0)),
-                new ColumnMetadata("text", createUnboundedVarcharType()));
+        assertEquals(metadata.getColumnMetadata(SESSION, TABLE_HANDLE_1, new BiosColumnHandle(
+                "dummyString")),
+                new ColumnMetadata("dummyString", BIGINT));
+                // new ColumnMetadata("dummyString", createUnboundedVarcharType()));
 
         // bios connector assumes that the table handle and column handle are
         // properly formed, so it will return a metadata object for any
@@ -135,8 +142,10 @@ public class TestBiosMetadata
         assertThatThrownBy(() -> metadata.createTable(
                 SESSION,
                 new ConnectorTableMetadata(
-                        new SchemaTableName("bios", "foo"),
-                        ImmutableList.of(new ColumnMetadata("text", createUnboundedVarcharType()))),
+                        new SchemaTableName("signal", "foo"),
+                        ImmutableList.of(new ColumnMetadata("dummyString",
+                                BIGINT))),
+                                // createUnboundedVarcharType()))),
                 false))
                 .isInstanceOf(TrinoException.class)
                 .hasMessage("This connector does not support creating tables");
@@ -145,6 +154,6 @@ public class TestBiosMetadata
     @Test(expectedExceptions = TrinoException.class)
     public void testDropTableTable()
     {
-        metadata.dropTable(SESSION, NUMBERS_TABLE_HANDLE);
+        metadata.dropTable(SESSION, TABLE_HANDLE_1);
     }
 }

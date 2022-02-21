@@ -1,0 +1,244 @@
+@startuml trino-bios-design
+title Isima bi(OS) plugin for Trino - class design
+
+left to right direction
+' top to bottom direction
+
+class BiosConfig << (P, orange) >> {
+    + URI url
+    + String email
+    + String password
+}
+
+class BiosClient {
+    # @Inject Cons (BiosConfig, JsonCodec catalogCodec)
+    - url, email, password, Map schemas
+    + getSchemaNames ()
+    + getTableNames (String schema)
+    + BiosTable getTable (schema, tableName)
+}
+
+class BiosColumn << (J, orangeRed) >> {
+    + Cons (name, type)
+    - String name
+    - Type type
+}
+
+interface ColumnHandle {
+    + hashCode ()
+    + equals (Object)
+}
+
+class BiosColumnHandle << (J, orangeRed) >> implements ColumnHandle {
+    + Cons (columnName)
+    - String columnName
+}
+
+interface Connector {
+    beginTransaction ()
+    getMetadata (session, txHandle)
+    getSplitManager ()
+    getRecordSetProvider ()
+    shutdown ()
+}
+
+class BiosConnector implements Connector {
+    # @Inject Cons (lifeCycleManager, metadata, splitManager, recordSetProvider)
+}
+
+interface ConnectorFactory {
+    getName ()
+    create (catalogName, config, context)
+}
+
+class BiosConnectorFactory implements ConnectorFactory {
+}
+
+interface ConnectorMetadata {
+    listSchemaNames (session)
+    getTableHandle (session, tableName)
+    getTableMetadata (session, table)
+    listTables (session, optionalSchemaName)
+    getColumnHandles (session, tableHandle)
+    listTableColumns (session, prefix)
+    getColumnMetadata (session, tableHandle, columnHandle)
+    getTableProperties (session, table)
+}
+
+class BiosMetadata implements ConnectorMetadata{
+    # @Inject Cons (biosClient)
+    - getTableMetadata (tableName)
+    - listTables (session, prefix)
+}
+
+interface Module {
+  configure (binder)
+}
+
+class BiosModule implements Module {
+}
+
+interface Plugin {
+    getConnectorFactories()
+}
+
+class BiosPlugin implements Plugin {
+}
+
+interface RecordCursor {
+    getType (int field)
+    getBoolean (int field)
+    get... (int field)
+    isNull (int field)
+    advanceNextPosition ()
+    close ()
+    getCompletedBytes ()
+    getReadTimeNanos ()
+}
+
+class BiosRecordCursor implements RecordCursor {
+    + Cons (columnHandles)
+    - getFieldValue (int field)
+}
+
+interface RecordSet {
+    getColumnTypes ()
+    cursor ()
+}
+
+class BiosRecordSet implements RecordSet {
+    + Cons (biosSplit, columnHandles)
+}
+
+interface ConnectorRecordSetProvider {
+    getRecordSet (transaction, session, split, table, columns)
+}
+
+class BiosRecordSetProvider implements ConnectorRecordSetProvider {
+}
+
+interface ConnectorSplit {
+    isRemotelyAccessible ()
+    getAddresses ()
+    getInfo ()
+}
+
+class BiosSplit implements ConnectorSplit {
+    + Cons (tableName)
+    + getTableName ()
+}
+
+interface ConnectorSplitManager {
+    getSplits
+    (transaction, session, tableHandle, splitSchedulingStrategy, dynamicFilter, constraint)
+}
+
+'ConnectorSplitManager::getSplits --> BiosSplit
+
+class BiosSplitManager implements ConnectorSplitManager {
+    # @Inject Cons (biosClient)
+}
+
+enum BiosTableKind {
+    SIGNAL
+    CONTEXT
+}
+
+class BiosTable << (J, orangeRed) >> {
+    + Cons (kind, name)
+    - kind
+    - name
+    - columns
+    - columnsMetadata
+}
+
+class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
+    + Cons (schemaName, tableName)
+    - schemaName
+    - tableName
+    + toSchemaTableName ()
+}
+
+class BiosTransactionHandle implements ConnectorTransactionHandle {
+    + INSTANCE
+}
+
+class ConnectorTableMetadata << (P, orange) >> {
+    - SchemaTableName
+    - List<ColumnMetadata>
+    - properties
+    - comment
+}
+
+
+BiosConnectorFactory ..> BiosConfig
+BiosConnector ..> BiosTransactionHandle
+BiosMetadata ..> ConnectorTableMetadata
+BiosTable ..> BiosTableKind
+BiosTable ..> BiosColumn
+BiosClient ..> BiosTable
+BiosMetadata ..> BiosTable
+BiosMetadata ..> BiosClient
+BiosSplitManager ..> BiosClient
+
+
+entity Initialization
+Initialization --> Module
+Initialization --> Plugin
+Initialization --> ConnectorFactory
+Initialization --> Connector
+Initialization --> ConnectorMetadata
+Initialization --> ConnectorTableHandle
+
+entity StartSelect
+StartSelect --> ConnectorRecordSetProvider
+StartSelect --> ConnectorSplitManager
+StartSelect --> ConnectorSplit
+StartSelect --> RecordSet
+
+entity RetrieveData
+RetrieveData --> RecordSet
+RetrieveData --> RecordCursor
+RetrieveData --> ColumnHandle
+
+
+Module .[hidden]> Plugin
+Plugin .[hidden]> ConnectorFactory
+ConnectorFactory .[hidden]> Connector
+Connector .[hidden]> ConnectorMetadata
+ConnectorMetadata .[hidden]> ConnectorTableHandle
+Connector .[hidden]> ConnectorRecordSetProvider
+Connector .[hidden]> ConnectorSplitManager
+ConnectorSplitManager .[hidden]> ConnectorSplit
+ConnectorRecordSetProvider .[hidden]> RecordSet
+RecordSet .[hidden]> RecordCursor
+
+
+newpage
+title Legend
+
+interface Interface1 {
+    + function1() - implemented by Bios class
+}
+
+class Class implements Interface1 {
+    + Cons () - Constructor
+    - privateVariable
+    + publicVariable
+    - privateFunction()
+    + publicFunction()
+}
+
+class POJO << (P, orange) >> {
+    + Cons () - Constructor
+    - gettable member
+    + gettable and settable member
+}
+
+class JsonPOJO << (J, orangeRed) >> {
+    + Cons () - Constructor
+    - gettable member
+    + gettable and settable member
+}
+
+@enduml

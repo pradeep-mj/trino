@@ -17,9 +17,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.testng.annotations.Test;
 
+import java.net.URI;
+
 import static io.trino.plugin.bios.MetadataUtil.CATALOG_CODEC;
 import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
@@ -29,14 +30,26 @@ public class TestBiosClient
     public void testMetadata()
             throws Exception
     {
-        BiosClient client = new BiosClient(new BiosConfig().setUrl(null), CATALOG_CODEC);
-        assertEquals(client.getSchemaNames(), ImmutableSet.of("bios", "tpch"));
-        assertEquals(client.getTableNames("bios"), ImmutableSet.of("numbers"));
-        assertEquals(client.getTableNames("tpch"), ImmutableSet.of("orders", "lineitem"));
+        BiosConfig config = new BiosConfig().setUrl(new URI("https://load.tieredfractals.com"));
+        config.setEmail("dummy@a.com");
+        config.setPassword("dummy");
+        BiosClient client = new BiosClient(config, CATALOG_CODEC);
+        assertEquals(client.getSchemaNames(), ImmutableSet.of("signal", "context"));
+        assertEquals(client.getTableNames("signal"), ImmutableSet.of("signal1"));
+        assertEquals(client.getTableNames("context"), ImmutableSet.of("context1"));
 
-        BiosTable table = client.getTable("bios", "numbers");
+        BiosTable table = client.getTable("signal", "signal1");
         assertNotNull(table, "table is null");
-        assertEquals(table.getName(), "numbers");
-        assertEquals(table.getColumns(), ImmutableList.of(new BiosColumn("text", createUnboundedVarcharType()), new BiosColumn("value", BIGINT)));
+        assertEquals(table.getName(), "signal1");
+        // assertEquals(table.getColumns(), ImmutableList.of(new BiosColumn("dummyString", createUnboundedVarcharType()), new BiosColumn("dummyInt", BIGINT)));
+        assertEquals(table.getColumns(), ImmutableList.of(new BiosColumn("dummyString", BIGINT),
+                new BiosColumn("dummyInt", BIGINT)));
+
+        table = client.getTable("context", "context1");
+        assertNotNull(table, "table is null");
+        assertEquals(table.getName(), "context1");
+        assertEquals(table.getColumns(), ImmutableList.of(new BiosColumn("dummyString", BIGINT),
+                new BiosColumn("dummyInt", BIGINT)));
+        // assertEquals(table.getColumns(), ImmutableList.of(new BiosColumn("dummyString", createUnboundedVarcharType()), new BiosColumn("dummyInt", BIGINT)));
     }
 }

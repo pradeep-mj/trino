@@ -29,18 +29,24 @@ public class TestBiosConfig
     public void testDefaults()
     {
         assertRecordedDefaults(recordDefaults(BiosConfig.class)
-                .setUrl(null));
+                .setUrl(null)
+                .setEmail(null)
+                .setPassword(null));
     }
 
     @Test
     public void testExplicitPropertyMappings()
     {
         Map<String, String> properties = new ImmutableMap.Builder<String, String>()
-                .put("metadata-uri", "file://test.json")
+                .put("bios.url", "https://load.tieredfractals.com")
+                .put("bios.email", "test_user@abc.com")
+                .put("bios.password", "test_password")
                 .buildOrThrow();
 
         BiosConfig expected = new BiosConfig()
-                .setUrl(URI.create("file://test.json"));
+                .setUrl(URI.create("https://load.tieredfractals.com"))
+                .setEmail("test_user@abc.com")
+                .setPassword("test_password");
 
         assertFullMapping(properties, expected);
     }

@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.Objects.requireNonNull;
 
 public class BiosClient
@@ -39,6 +41,9 @@ public class BiosClient
      * SchemaName -> (TableName -> TableMetadata)
      */
     private final Supplier<Map<String, Map<String, BiosTable>>> schemas;
+    private final URI url;
+    private final String email;
+    private final String password;
 
     @Inject
     public BiosClient(BiosConfig config, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
@@ -46,8 +51,15 @@ public class BiosClient
         requireNonNull(config, "config is null");
         requireNonNull(catalogCodec, "catalogCodec is null");
 
-        schemas = Suppliers.memoize(schemasSupplier(catalogCodec, config.getUrl(),
-                config.getEmail(), config.getPassword()));
+        url = config.getUrl();
+        requireNonNull(url, "url is null");
+
+        email = config.getEmail();
+        password = config.getPassword();
+        checkArgument(!isNullOrEmpty(email), "email is null");
+        checkArgument(!isNullOrEmpty(password), "password is null");
+
+        schemas = Suppliers.memoize(schemasSupplier(catalogCodec, url, email, password));
     }
 
     public Set<String> getSchemaNames()
@@ -91,14 +103,33 @@ public class BiosClient
     private static Map<String, Map<String, BiosTable>> lookupSchemas(URI url, String email, String password, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
             throws IOException
     {
-        logger.debug(catalogCodec.toString());
+        logger.debug("BiosClient::lookupSchemas got catalogCodec %s", catalogCodec.toString());
 
         Map<String, Map<String, BiosTable>> schemas = new HashMap<>();
-        Map<String, BiosTable> tables = new HashMap<>();
+        Map<String, BiosTable> signals = new HashMap<>();
+        Map<String, BiosTable> contexts = new HashMap<>();
 
-        tables.put("dummyTable1", new BiosTable("dummyTable1"));
-        schemas.put("dummySchema", tables);
+        signals.put("signal1", new BiosTable(BiosTableKind.SIGNAL, "signal1"));
+        schemas.put("signal", signals);
+
+        contexts.put("context1", new BiosTable(BiosTableKind.CONTEXT, "context1"));
+        schemas.put("context", contexts);
 
         return ImmutableMap.copyOf(schemas);
+    }
+
+    public URI getUrl()
+    {
+        return url;
+    }
+
+    public String getEmail()
+    {
+        return email;
+    }
+
+    public String getPassword()
+    {
+        return password;
     }
 }

@@ -23,21 +23,23 @@ import java.util.List;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
 public class BiosTable
 {
+    private final BiosTableKind kind;
     private final String name;
     private final List<BiosColumn> columns;
     private final List<ColumnMetadata> columnsMetadata;
 
     @JsonCreator
-    public BiosTable(@JsonProperty("name") String name)
+    public BiosTable(@JsonProperty("kind") BiosTableKind kind, @JsonProperty("name") String name)
     {
+        this.kind = requireNonNull(kind, "kind is null");
         checkArgument(!isNullOrEmpty(name), "name is null or is empty");
         this.name = requireNonNull(name, "name is null");
-        this.columns = ImmutableList.of(new BiosColumn("dummyString", VARCHAR),
+        this.columns = ImmutableList.of(new BiosColumn("dummyString", BIGINT),
+        // this.columns = ImmutableList.of(new BiosColumn("dummyString", VARCHAR),
                 new BiosColumn("dummyInt", BIGINT));
 
         ImmutableList.Builder<ColumnMetadata> columnsMetadata = ImmutableList.builder();
@@ -45,6 +47,12 @@ public class BiosTable
             columnsMetadata.add(new ColumnMetadata(column.getName(), column.getType()));
         }
         this.columnsMetadata = columnsMetadata.build();
+    }
+
+    @JsonProperty
+    public BiosTableKind getKind()
+    {
+        return kind;
     }
 
     @JsonProperty

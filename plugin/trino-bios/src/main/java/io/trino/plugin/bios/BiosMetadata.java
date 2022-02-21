@@ -26,6 +26,7 @@ import io.trino.spi.connector.ConnectorTableProperties;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
+import io.trino.spi.type.BigintType;
 
 import javax.inject.Inject;
 
@@ -107,7 +108,7 @@ public class BiosMetadata
         ImmutableMap.Builder<String, ColumnHandle> columnHandles = ImmutableMap.builder();
         int index = 0;
         for (ColumnMetadata column : table.getColumnsMetadata()) {
-            columnHandles.put(column.getName(), new BiosColumnHandle(column.getName(), column.getType(), index));
+            columnHandles.put(column.getName(), new BiosColumnHandle(column.getName()));
             index++;
         }
         return columnHandles.buildOrThrow();
@@ -153,7 +154,7 @@ public class BiosMetadata
     @Override
     public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
     {
-        return ((BiosColumnHandle) columnHandle).getColumnMetadata();
+        return new ColumnMetadata(((BiosColumnHandle) columnHandle).getColumnName(), BigintType.BIGINT);
     }
 
     @Override

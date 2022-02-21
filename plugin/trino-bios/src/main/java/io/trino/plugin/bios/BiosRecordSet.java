@@ -16,6 +16,7 @@ package io.trino.plugin.bios;
 import com.google.common.collect.ImmutableList;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.connector.RecordSet;
+import io.trino.spi.type.BigintType;
 import io.trino.spi.type.Type;
 
 import java.util.List;
@@ -35,7 +36,8 @@ public class BiosRecordSet
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
         ImmutableList.Builder<Type> types = ImmutableList.builder();
         for (BiosColumnHandle column : columnHandles) {
-            types.add(column.getColumnType());
+            // types.add(column.getColumnType());
+            types.add(BigintType.BIGINT);
         }
         this.columnTypes = types.build();
     }

@@ -36,7 +36,7 @@ public class BiosSplit
         this.tableName = requireNonNull(tableName, "uri is null");
 
         remotelyAccessible = true;
-        addresses = ImmutableList.of(HostAddress.fromParts("load.tieredfractals.com", 443));
+        addresses = ImmutableList.of(HostAddress.fromString("load.tieredfractals.com"));
     }
 
     @JsonProperty
