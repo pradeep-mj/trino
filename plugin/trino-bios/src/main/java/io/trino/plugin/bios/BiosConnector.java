@@ -55,6 +55,12 @@ public class BiosConnector
     }
 
     @Override
+    public ConnectorMetadata getMetadata(ConnectorTransactionHandle transactionHandle)
+    {
+        return metadata;
+    }
+
+    @Override
     public ConnectorMetadata getMetadata(ConnectorSession session, ConnectorTransactionHandle transactionHandle)
     {
         return metadata;

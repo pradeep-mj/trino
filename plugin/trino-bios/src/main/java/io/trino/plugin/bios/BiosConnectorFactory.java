@@ -31,7 +31,7 @@ public class BiosConnectorFactory
     @Override
     public String getName()
     {
-        return "signal";
+        return "bios";
     }
 
     @Override
