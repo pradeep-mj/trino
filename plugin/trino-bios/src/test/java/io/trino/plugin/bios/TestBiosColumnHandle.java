@@ -23,7 +23,7 @@ public class TestBiosColumnHandle
 {
     private final BiosColumnHandle columnHandle = new BiosColumnHandle("columnName");
 
-    @Test
+    @Test(enabled = false)
     public void testJsonRoundTrip()
     {
         String json = COLUMN_CODEC.toJson(columnHandle);

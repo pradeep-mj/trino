@@ -33,7 +33,7 @@ public class TestBiosSplit
         assertEquals(httpSplit.isRemotelyAccessible(), true);
     }
 
-    @Test
+    @Test(enabled = false)
     public void testJsonRoundTrip()
     {
         JsonCodec<BiosSplit> codec = jsonCodec(BiosSplit.class);

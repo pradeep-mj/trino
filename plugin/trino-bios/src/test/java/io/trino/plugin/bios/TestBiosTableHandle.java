@@ -24,7 +24,7 @@ public class TestBiosTableHandle
 {
     private final BiosTableHandle tableHandle = new BiosTableHandle("schemaName", "tableName");
 
-    @Test
+    @Test(enabled = false)
     public void testJsonRoundTrip()
     {
         JsonCodec<BiosTableHandle> codec = jsonCodec(BiosTableHandle.class);

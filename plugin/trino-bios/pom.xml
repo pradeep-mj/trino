@@ -58,6 +58,13 @@
         </dependency>
 
         <dependency>
+            <groupId>io.isima</groupId>
+            <artifactId>bios-sdk</artifactId>
+            <version>1.0.17-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
         </dependency>

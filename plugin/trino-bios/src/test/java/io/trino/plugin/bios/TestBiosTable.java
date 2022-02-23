@@ -34,7 +34,7 @@ public class TestBiosTable
                 new ColumnMetadata("dummyInt", BIGINT)));
     }
 
-    @Test
+    @Test(enabled = false)
     public void testRoundTrip()
     {
         String json = TABLE_CODEC.toJson(biosTable);
