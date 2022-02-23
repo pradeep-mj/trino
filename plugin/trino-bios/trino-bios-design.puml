@@ -171,47 +171,65 @@ class ConnectorTableMetadata << (P, orange) >> {
 }
 
 
+entity Process_Initialization
+Process_Initialization --> Module
+Process_Initialization --> Plugin
+Process_Initialization --> ConnectorFactory
+Process_Initialization --> BiosClient
+Process_Initialization --> BiosMetadata
+Process_Initialization --> BiosSplitManager
+Process_Initialization --> BiosConnector
 BiosConnectorFactory ..> BiosConfig
-BiosConnector ..> BiosTransactionHandle
-BiosMetadata ..> ConnectorTableMetadata
+BiosClient ..> BiosConfig
+
+entity Show_Schemas
+Show_Schemas --> Connector
+Show_Schemas --> ConnectorMetadata
+BiosMetadata ..> BiosClient
+BiosClient ..> BiosTable
 BiosTable ..> BiosTableKind
 BiosTable ..> BiosColumn
-BiosClient ..> BiosTable
-BiosMetadata ..> BiosTable
-BiosMetadata ..> BiosClient
-BiosSplitManager ..> BiosClient
 
-
-entity Initialization
-Initialization --> Module
-Initialization --> Plugin
-Initialization --> ConnectorFactory
-Initialization --> Connector
-Initialization --> ConnectorMetadata
-Initialization --> ConnectorTableHandle
+entity Show_Tables
+Show_Tables --> ConnectorMetadata
 
 entity StartSelect
-StartSelect --> ConnectorRecordSetProvider
+StartSelect --> ConnectorMetadata
+StartSelect --> ConnectorTransactionHandle
+StartSelect --> ConnectorTableHandle
+StartSelect --> ColumnHandle
 StartSelect --> ConnectorSplitManager
 StartSelect --> ConnectorSplit
+StartSelect --> ConnectorRecordSetProvider
 StartSelect --> RecordSet
+BiosMetadata ..> ConnectorTableMetadata
 
 entity RetrieveData
-RetrieveData --> RecordSet
 RetrieveData --> RecordCursor
-RetrieveData --> ColumnHandle
 
 
-Module .[hidden]> Plugin
-Plugin .[hidden]> ConnectorFactory
-ConnectorFactory .[hidden]> Connector
-Connector .[hidden]> ConnectorMetadata
-ConnectorMetadata .[hidden]> ConnectorTableHandle
-Connector .[hidden]> ConnectorRecordSetProvider
-Connector .[hidden]> ConnectorSplitManager
+Process_Initialization .[hidden]> Show_Schemas
+Show_Schemas .[hidden]> Show_Tables
+Show_Tables .[hidden]> StartSelect
+StartSelect .[hidden]> RetrieveData
+
+BiosModule .[hidden]> BiosPlugin
+BiosPlugin .[hidden]> BiosConnectorFactory
+BiosConnectorFactory .[hidden]> BiosClient
+
+BiosClient .[hidden]> BiosMetadata
+BiosMetadata .[hidden]> BiosSplitManager
+BiosSplitManager .[hidden]> BiosConnector
+
+
+ConnectorMetadata .[hidden]> ConnectorTransactionHandle
+ConnectorTransactionHandle .[hidden]> ConnectorTableHandle
+ConnectorTableHandle .[hidden]> ColumnHandle
+ColumnHandle .[hidden]> ConnectorSplitManager
 ConnectorSplitManager .[hidden]> ConnectorSplit
+ConnectorSplit .[hidden]> ConnectorRecordSetProvider
 ConnectorRecordSetProvider .[hidden]> RecordSet
-RecordSet .[hidden]> RecordCursor
+
 
 
 newpage
