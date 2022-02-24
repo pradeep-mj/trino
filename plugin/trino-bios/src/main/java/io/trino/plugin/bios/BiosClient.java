@@ -164,7 +164,7 @@ public class BiosClient
                     String columnName = attributeConfig.getName();
                     Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
                     BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                            false);
+                            BiosTableKind.SIGNAL, false);
                     columns.add(columnHandle);
                 }
                 table = new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
@@ -180,7 +180,7 @@ public class BiosClient
                     String columnName = attributeConfig.getName();
                     Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
                     BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                            isFirstAttribute);
+                            BiosTableKind.CONTEXT, isFirstAttribute);
                     isFirstAttribute = false;
                     columns.add(columnHandle);
                 }

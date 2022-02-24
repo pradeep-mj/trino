@@ -43,7 +43,7 @@ public class BiosRecordCursor
     private final BiosClient biosClient;
     private final ISqlStatement statement;
     private final List<BiosColumnHandle> columnHandles;
-    private Iterator<Record> records;
+    private final Iterator<Record> records;
     private Record currentRecord;
 
     public BiosRecordCursor(BiosClient biosClient, ISqlStatement statement,
@@ -66,12 +66,10 @@ public class BiosRecordCursor
                 response.getDataWindows().size(),
                 response.getRecords().size());
 
-        List<Record> data = new ArrayList<>();
+        List<Record> data = new ArrayList<>(response.getRecords());
         for (DataWindow window : response.getDataWindows()) {
             logger.debug("BiosRecordCursor: %d records", window.getRecords().size());
-            for (Record record : window.getRecords()) {
-                data.add(record);
-            }
+            data.addAll(window.getRecords());
         }
         records = data.iterator();
     }
@@ -144,7 +142,9 @@ public class BiosRecordCursor
     public boolean isNull(int field)
     {
         checkArgument(field < columnHandles.size(), "Invalid field index");
-        return false;
+        // Contexts only support listing the primary key attribute; return null for all columns
+        // other than the first one (the primary key).
+        return (columnHandles.get(0).getIsKey()) && (field > 0);
     }
 
     private void checkFieldType(int field, Type expected)

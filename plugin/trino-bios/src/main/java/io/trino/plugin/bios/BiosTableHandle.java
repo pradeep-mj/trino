@@ -49,6 +49,16 @@ public final class BiosTableHandle
         return tableName;
     }
 
+    public BiosTableKind getKind()
+    {
+        if (schemaName.equals("signal")) {
+            return BiosTableKind.SIGNAL;
+        }
+        else {
+            return BiosTableKind.CONTEXT;
+        }
+    }
+
     public SchemaTableName toSchemaTableName()
     {
         return new SchemaTableName(schemaName, tableName);

@@ -29,16 +29,19 @@ public final class BiosColumnHandle
 {
     private final String columnName;
     private final Type columnType;
+    private final BiosTableKind tableKind;
     private final boolean isKey;
 
     @JsonCreator
     public BiosColumnHandle(
             @JsonProperty("columnName") String columnName,
             @JsonProperty("columnType") Type columnType,
+            @JsonProperty("tableKind") BiosTableKind tableKind,
             @JsonProperty("isKey") boolean isKey)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
+        this.tableKind = requireNonNull(tableKind, "tableKind is null");
         this.isKey = isKey;
     }
 
@@ -55,6 +58,12 @@ public final class BiosColumnHandle
     }
 
     @JsonProperty
+    public BiosTableKind getTableKind()
+    {
+        return tableKind;
+    }
+
+    @JsonProperty
     public boolean getIsKey()
     {
         return isKey;
@@ -67,12 +76,18 @@ public final class BiosColumnHandle
         if (isKey) {
             extraInfo = "key";
         }
-        return ColumnMetadata.builder()
+        final var builder = ColumnMetadata.builder()
                 .setName(columnName)
                 .setType(columnType)
                 .setNullable(false)
-                .setExtraInfo(Optional.ofNullable(extraInfo))
-                .build();
+                .setExtraInfo(Optional.ofNullable(extraInfo));
+        // Contexts only support listing the primary key attribute; return null for all columns
+        // other than the first one (the primary key).
+        if ((tableKind == BiosTableKind.CONTEXT) && !isKey) {
+            builder.setNullable(true);
+        }
+
+        return builder.build();
     }
 
     @Override

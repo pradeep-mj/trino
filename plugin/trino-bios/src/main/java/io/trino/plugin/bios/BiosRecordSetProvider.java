@@ -42,22 +42,31 @@ public class BiosRecordSetProvider
     @Override
     public RecordSet getRecordSet(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, ConnectorTableHandle table, List<? extends ColumnHandle> columns)
     {
+        BiosTableHandle tableHandle = (BiosTableHandle) table;
+
         List<BiosColumnHandle> biosColumnHandles = columns.stream()
                 .map(column -> (BiosColumnHandle) column)
                 .collect(toUnmodifiableList());
+        String[] attributes = biosColumnHandles.stream()
+                .map(BiosColumnHandle::getColumnName)
+                .toArray(String[]::new);
 
         // TODO make start and delta dynamically assignable per query.
         long start = System.currentTimeMillis();
         long delta = -(60 * 60 * 1000);
 
-        String[] attributes = biosColumnHandles.stream()
-                .map(BiosColumnHandle::getColumnName)
-                .toArray(String[]::new);
-
-        ISqlStatement statement = ISqlStatement.select(attributes)
-                .from(((BiosTableHandle) table).getTableName())
-                .timeRange(start, delta)
-                .build();
+        ISqlStatement statement;
+        if (tableHandle.getKind() == BiosTableKind.SIGNAL) {
+            statement = ISqlStatement.select(attributes)
+                    .from(tableHandle.getTableName())
+                    .timeRange(start, delta)
+                    .build();
+        }
+        else {
+            statement = ISqlStatement.select(biosColumnHandles.get(0).getColumnName())
+                    .fromContext(tableHandle.getTableName())
+                    .build();
+        }
 
         return new BiosRecordSet(biosClient, statement, biosColumnHandles);
     }
