@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.bios;
 
+import io.airlift.log.Logger;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spi.connector.ConnectorSplitManager;
@@ -34,6 +35,8 @@ import static java.util.Objects.requireNonNull;
 public class BiosSplitManager
         implements ConnectorSplitManager
 {
+    private static final Logger logger = Logger.get(BiosSplitManager.class);
+
     private final BiosClient biosClient;
 
     @Inject
@@ -60,8 +63,9 @@ public class BiosSplitManager
         }
 
         List<ConnectorSplit> splits = new ArrayList<>();
-        splits.add(new BiosSplit(tableHandle.getTableName()));
+        splits.add(new BiosSplit(biosClient.getUrl().toString()));
 
+        logger.info(splits.toString());
         return new FixedSplitSource(splits);
     }
 }

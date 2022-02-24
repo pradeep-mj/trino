@@ -20,24 +20,42 @@ import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
 import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
+import io.isima.bios.models.AttributeConfig;
+import io.isima.bios.models.ContextConfig;
+import io.isima.bios.models.SignalConfig;
+import io.isima.bios.models.TenantConfig;
 import io.isima.bios.sdk.Bios;
 import io.isima.bios.sdk.Session;
 import io.isima.bios.sdk.exceptions.BiosClientException;
+import io.trino.spi.type.Type;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static io.trino.spi.type.BigintType.BIGINT;
+import static io.trino.spi.type.BooleanType.BOOLEAN;
+import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
 public class BiosClient
 {
     private static final Logger logger = Logger.get(BiosClient.class);
+    private static final Map<String, Type> biosTypeMap = new HashMap<>();
+
+    static {
+        biosTypeMap.put("integer", BIGINT);
+        biosTypeMap.put("boolean", BOOLEAN);
+        biosTypeMap.put("string", VARCHAR);
+        biosTypeMap.put("decimal", DOUBLE);
+    }
 
     /**
      * SchemaName -> (TableName -> TableMetadata)
@@ -69,11 +87,15 @@ public class BiosClient
         return () -> {
             Session session;
             try {
-                session = Bios.newSession(url.getHost(), url.getPort())
+                logger.debug("sessionSupplier: %s (%s), %s, %s", url.toString(), url.getHost(),
+                        email,
+                        password);
+                session = Bios.newSession(url.getHost(), 443)
                         .user(email)
                         .password(password)
                         .sslCertFile(null)
                         .connect();
+                logger.debug("sessionSupplier: done");
                 return session;
             }
             catch (BiosClientException e) {
@@ -89,32 +111,88 @@ public class BiosClient
 
     public Set<String> getTableNames(String schemaName)
     {
+        logger.debug("getTableNames: %s", schemaName);
         requireNonNull(schemaName, "schemaName is null");
-        // session.get(). TODO
+
+        TenantConfig tenantConfig;
+        try {
+            tenantConfig = session.get().getTenant(true, true);
+        }
+        catch (BiosClientException e) {
+            throw new RuntimeException(e.toString());
+        }
+        List<String> tableNames = new ArrayList<>();
+
         if (schemaName.equals("signal")) {
-            return ImmutableSet.of("signal1");
+            for (SignalConfig signalConfig : tenantConfig.getSignals()) {
+                tableNames.add(signalConfig.getName());
+            }
         }
         else if (schemaName.equals("context")) {
-            return ImmutableSet.of("context1");
+            for (ContextConfig contextConfig : tenantConfig.getContexts()) {
+                tableNames.add(contextConfig.getName());
+            }
         }
-        return null;
+        logger.debug("getTableNames: %s", tableNames.toString());
+        return ImmutableSet.copyOf(tableNames);
     }
 
     public BiosTable getTable(String schemaName, String tableName)
     {
+        logger.debug("getTable: %s.%s", schemaName, tableName);
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
+
+        TenantConfig tenantConfig;
+        try {
+            tenantConfig = session.get().getTenant(true, true);
+        }
+        catch (BiosClientException e) {
+            throw new RuntimeException(e.toString());
+        }
+
         BiosTableHandle tableHandle = new BiosTableHandle(schemaName, tableName);
-        List<BiosColumnHandle> columns = ImmutableList.of(
-                new BiosColumnHandle("stringCol", VARCHAR, false),
-                new BiosColumnHandle("intCol", BIGINT, false));
-        // session.get(). TODO
+        List<BiosColumnHandle> columns = new ArrayList<>();
+        BiosTable table = null;
+
         if (schemaName.equals("signal")) {
-            return new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
+            for (SignalConfig signalConfig : tenantConfig.getSignals()) {
+                if (!tableName.equalsIgnoreCase(signalConfig.getName())) {
+                    continue;
+                }
+                for (AttributeConfig attributeConfig : signalConfig.getAttributes()) {
+                    String columnName = attributeConfig.getName();
+                    Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
+                    BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
+                            false);
+                    columns.add(columnHandle);
+                }
+                table = new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
+            }
         }
         else if (schemaName.equals("context")) {
-            return new BiosTable(BiosTableKind.CONTEXT, tableHandle, columns);
+            for (ContextConfig contextConfig : tenantConfig.getContexts()) {
+                if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
+                    continue;
+                }
+                boolean isFirstAttribute = true;
+                for (AttributeConfig attributeConfig : contextConfig.getAttributes()) {
+                    String columnName = attributeConfig.getName();
+                    Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
+                    BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
+                            isFirstAttribute);
+                    isFirstAttribute = false;
+                    columns.add(columnHandle);
+                }
+                table = new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
+            }
         }
-        return null;
+
+        return table;
+    }
+
+    public URI getUrl()
+    {
+        return url;
     }
 }

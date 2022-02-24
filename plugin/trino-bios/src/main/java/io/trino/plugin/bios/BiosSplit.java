@@ -26,23 +26,23 @@ import static java.util.Objects.requireNonNull;
 public class BiosSplit
         implements ConnectorSplit
 {
-    private final String tableName;
+    private final String url;
     private final boolean remotelyAccessible;
     private final List<HostAddress> addresses;
 
     @JsonCreator
-    public BiosSplit(@JsonProperty("tableName") String tableName)
+    public BiosSplit(@JsonProperty("url") String url)
     {
-        this.tableName = requireNonNull(tableName, "uri is null");
+        this.url = requireNonNull(url, "url is null");
 
         remotelyAccessible = true;
-        addresses = ImmutableList.of(HostAddress.fromString("load.tieredfractals.com"));
+        addresses = ImmutableList.of(HostAddress.fromString(url));
     }
 
     @JsonProperty
-    public String getTableName()
+    public String getUrl()
     {
-        return tableName;
+        return url;
     }
 
     @Override

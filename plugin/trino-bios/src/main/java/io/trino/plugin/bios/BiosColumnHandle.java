@@ -19,6 +19,8 @@ import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.type.Type;
 
+import java.util.Optional;
+
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
@@ -60,7 +62,17 @@ public final class BiosColumnHandle
 
     public ColumnMetadata getColumnMetadata()
     {
-        return new ColumnMetadata(columnName, columnType);
+        String extraInfo = null;
+
+        if (isKey) {
+            extraInfo = "key";
+        }
+        return ColumnMetadata.builder()
+                .setName(columnName)
+                .setType(columnType)
+                .setNullable(false)
+                .setExtraInfo(Optional.ofNullable(extraInfo))
+                .build();
     }
 
     @Override

@@ -16,6 +16,7 @@ package io.trino.plugin.bios;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.airlift.log.Logger;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.ConnectorMetadata;
@@ -40,6 +41,8 @@ import static java.util.stream.Collectors.toList;
 public class BiosMetadata
         implements ConnectorMetadata
 {
+    private static final Logger logger = Logger.get(BiosMetadata.class);
+
     private final BiosClient biosClient;
 
     @Inject
@@ -57,6 +60,7 @@ public class BiosMetadata
     @Override
     public BiosTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
+        logger.debug("getTableHandle");
         if (!listSchemaNames(session).contains(tableName.getSchemaName())) {
             return null;
         }
@@ -72,6 +76,7 @@ public class BiosMetadata
     @Override
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
     {
+        logger.debug("getTableMetadata");
         return getTableMetadata(session, ((BiosTableHandle) table).toSchemaTableName());
     }
 
@@ -97,6 +102,7 @@ public class BiosMetadata
     @Override
     public List<SchemaTableName> listTables(ConnectorSession session, Optional<String> optionalSchemaName)
     {
+        logger.debug("listTables");
         Set<String> schemaNames = optionalSchemaName.map(ImmutableSet::of)
                 .orElseGet(() -> ImmutableSet.copyOf(biosClient.getSchemaNames()));
 
@@ -112,6 +118,7 @@ public class BiosMetadata
     @Override
     public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
+        logger.debug("getColumnHandles");
         BiosTableHandle biosTableHandle = (BiosTableHandle) tableHandle;
 
         BiosTable table = biosClient.getTable(biosTableHandle.getSchemaName(), biosTableHandle.getTableName());
@@ -129,6 +136,7 @@ public class BiosMetadata
     @Override
     public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
     {
+        logger.debug("listTableColumns");
         requireNonNull(prefix, "prefix is null");
         ImmutableMap.Builder<SchemaTableName, List<ColumnMetadata>> columns = ImmutableMap.builder();
         for (SchemaTableName schemaTableName : listTables(session, prefix)) {
@@ -152,12 +160,14 @@ public class BiosMetadata
     @Override
     public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
     {
+        logger.debug("getColumnMetadata");
         return ((BiosColumnHandle) columnHandle).getColumnMetadata();
     }
 
     @Override
     public ConnectorTableProperties getTableProperties(ConnectorSession session, ConnectorTableHandle table)
     {
+        logger.debug("getTableProperties");
         return new ConnectorTableProperties();
     }
 }
