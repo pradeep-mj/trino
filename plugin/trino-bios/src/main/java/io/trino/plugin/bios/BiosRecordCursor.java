@@ -17,7 +17,6 @@ import com.google.common.base.Strings;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
 import io.trino.spi.connector.RecordCursor;
-import io.trino.spi.type.BigintType;
 import io.trino.spi.type.Type;
 
 import java.util.List;
@@ -63,8 +62,7 @@ public class BiosRecordCursor
     public Type getType(int field)
     {
         checkArgument(field < columnHandles.size(), "Invalid field index");
-        // return columnHandles.get(field).getColumnType();
-        return BigintType.BIGINT;
+        return columnHandles.get(field).getColumnType();
     }
 
     @Override
@@ -74,8 +72,7 @@ public class BiosRecordCursor
         if (currentRow >= totalRows) {
             return false;
         }
-        // fields = List.of(String.format("row-%d", currentRow), String.format("%d", currentRow));
-        fields = List.of(String.format("%d0", currentRow), String.format("%d", currentRow));
+        fields = List.of(String.format("row-%d", currentRow), String.format("%d", currentRow));
 
         return true;
     }

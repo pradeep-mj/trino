@@ -16,6 +16,8 @@ package io.trino.plugin.bios;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.connector.ColumnMetadata;
+import io.trino.spi.type.Type;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
@@ -24,17 +26,41 @@ public final class BiosColumnHandle
         implements ColumnHandle
 {
     private final String columnName;
+    private final Type columnType;
+    private final boolean isKey;
 
     @JsonCreator
-    public BiosColumnHandle(@JsonProperty("columnName") String columnName)
+    public BiosColumnHandle(
+            @JsonProperty("columnName") String columnName,
+            @JsonProperty("columnType") Type columnType,
+            @JsonProperty("isKey") boolean isKey)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
+        this.columnType = requireNonNull(columnType, "columnType is null");
+        this.isKey = isKey;
     }
 
     @JsonProperty
     public String getColumnName()
     {
         return columnName;
+    }
+
+    @JsonProperty
+    public Type getColumnType()
+    {
+        return columnType;
+    }
+
+    @JsonProperty
+    public boolean getIsKey()
+    {
+        return isKey;
+    }
+
+    public ColumnMetadata getColumnMetadata()
+    {
+        return new ColumnMetadata(columnName, columnType);
     }
 
     @Override
@@ -62,6 +88,8 @@ public final class BiosColumnHandle
     {
         return toStringHelper(this)
                 .add("columnName", columnName)
+                .add("columnType", columnType)
+                .add("isKey", isKey)
                 .toString();
     }
 }

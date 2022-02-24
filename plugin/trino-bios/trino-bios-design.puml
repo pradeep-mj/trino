@@ -18,20 +18,16 @@ class BiosClient {
     + BiosTable getTable (schema, tableName)
 }
 
-class BiosColumn << (J, orangeRed) >> {
-    + Cons (name, type)
-    - String name
-    - Type type
-}
-
 interface ColumnHandle {
     + hashCode ()
     + equals (Object)
 }
 
 class BiosColumnHandle << (J, orangeRed) >> implements ColumnHandle {
-    + Cons (columnName)
+    + Cons (columnName, columnType, isKey)
     - String columnName
+    - Type columnType
+    - boolean isKey
 }
 
 interface Connector {
@@ -144,12 +140,11 @@ enum BiosTableKind {
     CONTEXT
 }
 
-class BiosTable << (J, orangeRed) >> {
+class BiosTable << (P, orange) >> {
     + Cons (kind, name)
     - kind
-    - name
+    - tableHandle
     - columns
-    - columnsMetadata
 }
 
 class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
@@ -188,7 +183,6 @@ Show_Schemas --> ConnectorMetadata
 BiosMetadata ..> BiosClient
 BiosClient ..> BiosTable
 BiosTable ..> BiosTableKind
-BiosTable ..> BiosColumn
 
 entity Show_Tables
 Show_Tables --> ConnectorMetadata

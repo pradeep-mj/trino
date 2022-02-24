@@ -15,22 +15,24 @@ package io.trino.plugin.bios;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
 import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
+import io.isima.bios.sdk.Bios;
+import io.isima.bios.sdk.Session;
+import io.isima.bios.sdk.exceptions.BiosClientException;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.URI;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static io.trino.spi.type.BigintType.BIGINT;
+import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
 public class BiosClient
@@ -40,7 +42,7 @@ public class BiosClient
     /**
      * SchemaName -> (TableName -> TableMetadata)
      */
-    private final Supplier<Map<String, Map<String, BiosTable>>> schemas;
+    private final Supplier<Session> session;
     private final URI url;
     private final String email;
     private final String password;
@@ -59,77 +61,60 @@ public class BiosClient
         checkArgument(!isNullOrEmpty(email), "email is null");
         checkArgument(!isNullOrEmpty(password), "password is null");
 
-        schemas = Suppliers.memoize(schemasSupplier(catalogCodec, url, email, password));
+        session = Suppliers.memoize(sessionSupplier(url, email, password));
     }
 
-    public Set<String> getSchemaNames()
-    {
-        return schemas.get().keySet();
-    }
-
-    public Set<String> getTableNames(String schema)
-    {
-        requireNonNull(schema, "schema is null");
-        Map<String, BiosTable> tables = schemas.get().get(schema);
-        if (tables == null) {
-            return ImmutableSet.of();
-        }
-        return tables.keySet();
-    }
-
-    public BiosTable getTable(String schema, String tableName)
-    {
-        requireNonNull(schema, "schema is null");
-        requireNonNull(tableName, "tableName is null");
-        Map<String, BiosTable> tables = schemas.get().get(schema);
-        if (tables == null) {
-            return null;
-        }
-        return tables.get(tableName);
-    }
-
-    private static Supplier<Map<String, Map<String, BiosTable>>> schemasSupplier(JsonCodec<Map<String, List<BiosTable>>> catalogCodec, URI url, String email, String password)
+    private static Supplier<Session> sessionSupplier(URI url, String email, String password)
     {
         return () -> {
+            Session session;
             try {
-                return lookupSchemas(url, email, password, catalogCodec);
+                session = Bios.newSession(url.getHost(), url.getPort())
+                        .user(email)
+                        .password(password)
+                        .sslCertFile(null)
+                        .connect();
+                return session;
             }
-            catch (IOException e) {
-                throw new UncheckedIOException(e);
+            catch (BiosClientException e) {
+                throw new RuntimeException(e.toString());
             }
         };
     }
 
-    private static Map<String, Map<String, BiosTable>> lookupSchemas(URI url, String email, String password, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
-            throws IOException
+    public List<String> getSchemaNames()
     {
-        logger.debug("BiosClient::lookupSchemas got catalogCodec %s", catalogCodec.toString());
-
-        Map<String, Map<String, BiosTable>> schemas = new HashMap<>();
-        Map<String, BiosTable> signals = new HashMap<>();
-        Map<String, BiosTable> contexts = new HashMap<>();
-
-        signals.put("signal1", new BiosTable(BiosTableKind.SIGNAL, "signal1"));
-        schemas.put("signal", signals);
-
-        contexts.put("context1", new BiosTable(BiosTableKind.CONTEXT, "context1"));
-        schemas.put("context", contexts);
-
-        return ImmutableMap.copyOf(schemas);
+        return ImmutableList.of("context", "signal");
     }
 
-    public URI getUrl()
+    public Set<String> getTableNames(String schemaName)
     {
-        return url;
+        requireNonNull(schemaName, "schemaName is null");
+        // session.get(). TODO
+        if (schemaName.equals("signal")) {
+            return ImmutableSet.of("signal1");
+        }
+        else if (schemaName.equals("context")) {
+            return ImmutableSet.of("context1");
+        }
+        return null;
     }
 
-    public String getEmail()
+    public BiosTable getTable(String schemaName, String tableName)
     {
-        return email;
-    }
-
-    public String getPassword()
-    {
-        return password;
+        requireNonNull(schemaName, "schemaName is null");
+        requireNonNull(tableName, "tableName is null");
+        BiosTableHandle tableHandle = new BiosTableHandle(schemaName, tableName);
+        List<BiosColumnHandle> columns = ImmutableList.of(
+                new BiosColumnHandle("stringCol", VARCHAR, false),
+                new BiosColumnHandle("intCol", BIGINT, false));
+        // session.get(). TODO
+        if (schemaName.equals("signal")) {
+            return new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
+        }
+        else if (schemaName.equals("context")) {
+            return new BiosTable(BiosTableKind.CONTEXT, tableHandle, columns);
+        }
+        return null;
     }
 }

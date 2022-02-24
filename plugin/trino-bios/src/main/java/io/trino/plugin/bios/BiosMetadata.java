@@ -26,7 +26,6 @@ import io.trino.spi.connector.ConnectorTableProperties;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
-import io.trino.spi.type.BigintType;
 
 import javax.inject.Inject;
 
@@ -36,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toList;
 
 public class BiosMetadata
         implements ConnectorMetadata
@@ -50,11 +50,6 @@ public class BiosMetadata
 
     @Override
     public List<String> listSchemaNames(ConnectorSession session)
-    {
-        return listSchemaNames();
-    }
-
-    public List<String> listSchemaNames()
     {
         return ImmutableList.copyOf(biosClient.getSchemaNames());
     }
@@ -71,13 +66,32 @@ public class BiosMetadata
             return null;
         }
 
-        return new BiosTableHandle(tableName.getSchemaName(), tableName.getTableName());
+        return table.getTableHandle();
     }
 
     @Override
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
     {
-        return getTableMetadata(((BiosTableHandle) table).toSchemaTableName());
+        return getTableMetadata(session, ((BiosTableHandle) table).toSchemaTableName());
+    }
+
+    private ConnectorTableMetadata getTableMetadata(ConnectorSession session,
+                                                    SchemaTableName schemaTableName)
+    {
+        if (!listSchemaNames(session).contains(schemaTableName.getSchemaName())) {
+            return null;
+        }
+
+        BiosTable biosTable = biosClient.getTable(schemaTableName.getSchemaName(),
+                schemaTableName.getTableName());
+        if (biosTable == null) {
+            return null;
+        }
+
+        List<ColumnMetadata> columns = biosTable.getColumns().stream()
+                .map(BiosColumnHandle::getColumnMetadata)
+                .collect(toList());
+        return new ConnectorTableMetadata(schemaTableName, columns);
     }
 
     @Override
@@ -106,10 +120,8 @@ public class BiosMetadata
         }
 
         ImmutableMap.Builder<String, ColumnHandle> columnHandles = ImmutableMap.builder();
-        int index = 0;
-        for (ColumnMetadata column : table.getColumnsMetadata()) {
-            columnHandles.put(column.getName(), new BiosColumnHandle(column.getName()));
-            index++;
+        for (BiosColumnHandle column : table.getColumns()) {
+            columnHandles.put(column.getColumnName(), column);
         }
         return columnHandles.buildOrThrow();
     }
@@ -119,28 +131,14 @@ public class BiosMetadata
     {
         requireNonNull(prefix, "prefix is null");
         ImmutableMap.Builder<SchemaTableName, List<ColumnMetadata>> columns = ImmutableMap.builder();
-        for (SchemaTableName tableName : listTables(session, prefix)) {
-            ConnectorTableMetadata tableMetadata = getTableMetadata(tableName);
+        for (SchemaTableName schemaTableName : listTables(session, prefix)) {
+            ConnectorTableMetadata tableMetadata = getTableMetadata(session, schemaTableName);
             // table can disappear during listing operation
             if (tableMetadata != null) {
-                columns.put(tableName, tableMetadata.getColumns());
+                columns.put(schemaTableName, tableMetadata.getColumns());
             }
         }
         return columns.buildOrThrow();
-    }
-
-    private ConnectorTableMetadata getTableMetadata(SchemaTableName tableName)
-    {
-        if (!listSchemaNames().contains(tableName.getSchemaName())) {
-            return null;
-        }
-
-        BiosTable table = biosClient.getTable(tableName.getSchemaName(), tableName.getTableName());
-        if (table == null) {
-            return null;
-        }
-
-        return new ConnectorTableMetadata(tableName, table.getColumnsMetadata());
     }
 
     private List<SchemaTableName> listTables(ConnectorSession session, SchemaTablePrefix prefix)
@@ -154,7 +152,7 @@ public class BiosMetadata
     @Override
     public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
     {
-        return new ColumnMetadata(((BiosColumnHandle) columnHandle).getColumnName(), BigintType.BIGINT);
+        return ((BiosColumnHandle) columnHandle).getColumnMetadata();
     }
 
     @Override

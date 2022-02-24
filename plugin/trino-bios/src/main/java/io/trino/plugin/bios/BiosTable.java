@@ -13,62 +13,36 @@
  */
 package io.trino.plugin.bios;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.collect.ImmutableList;
-import io.trino.spi.connector.ColumnMetadata;
-
 import java.util.List;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Strings.isNullOrEmpty;
-import static io.trino.spi.type.BigintType.BIGINT;
 import static java.util.Objects.requireNonNull;
 
 public class BiosTable
 {
     private final BiosTableKind kind;
-    private final String name;
-    private final List<BiosColumn> columns;
-    private final List<ColumnMetadata> columnsMetadata;
+    private final BiosTableHandle tableHandle;
+    private final List<BiosColumnHandle> columns;
 
-    @JsonCreator
-    public BiosTable(@JsonProperty("kind") BiosTableKind kind, @JsonProperty("name") String name)
+    public BiosTable(BiosTableKind kind, BiosTableHandle tableHandle,
+                     List<BiosColumnHandle> columns)
     {
         this.kind = requireNonNull(kind, "kind is null");
-        checkArgument(!isNullOrEmpty(name), "name is null or is empty");
-        this.name = requireNonNull(name, "name is null");
-        this.columns = ImmutableList.of(new BiosColumn("dummyString", BIGINT),
-        // this.columns = ImmutableList.of(new BiosColumn("dummyString", VARCHAR),
-                new BiosColumn("dummyInt", BIGINT));
-
-        ImmutableList.Builder<ColumnMetadata> columnsMetadata = ImmutableList.builder();
-        for (BiosColumn column : this.columns) {
-            columnsMetadata.add(new ColumnMetadata(column.getName(), column.getType()));
-        }
-        this.columnsMetadata = columnsMetadata.build();
+        this.tableHandle = requireNonNull(tableHandle, "tableHandle is null");
+        this.columns = requireNonNull(columns, "columns is null");
     }
 
-    @JsonProperty
     public BiosTableKind getKind()
     {
         return kind;
     }
 
-    @JsonProperty
-    public String getName()
+    public BiosTableHandle getTableHandle()
     {
-        return name;
+        return tableHandle;
     }
 
-    @JsonProperty
-    public List<BiosColumn> getColumns()
+    public List<BiosColumnHandle> getColumns()
     {
         return columns;
-    }
-
-    public List<ColumnMetadata> getColumnsMetadata()
-    {
-        return columnsMetadata;
     }
 }
