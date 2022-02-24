@@ -63,7 +63,7 @@ interface ConnectorMetadata {
 
 class BiosMetadata implements ConnectorMetadata{
     # @Inject Cons (biosClient)
-    - getTableMetadata (tableName)
+    - getTableMetadata (session, schemaTableName)
     - listTables (session, prefix)
 }
 
@@ -183,6 +183,8 @@ Show_Schemas --> ConnectorMetadata
 BiosMetadata ..> BiosClient
 BiosClient ..> BiosTable
 BiosTable ..> BiosTableKind
+BiosTable ..> BiosTableHandle
+BiosTable ..> BiosColumnHandle
 
 entity Show_Tables
 Show_Tables --> ConnectorMetadata
