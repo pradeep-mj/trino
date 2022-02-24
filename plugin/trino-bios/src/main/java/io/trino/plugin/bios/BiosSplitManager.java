@@ -63,7 +63,7 @@ public class BiosSplitManager
         }
 
         List<ConnectorSplit> splits = new ArrayList<>();
-        splits.add(new BiosSplit(biosClient.getUrl().toString()));
+        splits.add(new BiosSplit(tableHandle.getTableName()));
 
         logger.info(splits.toString());
         return new FixedSplitSource(splits);

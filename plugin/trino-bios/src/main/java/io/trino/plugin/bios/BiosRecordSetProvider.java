@@ -13,7 +13,8 @@
  */
 package io.trino.plugin.bios;
 
-import com.google.common.collect.ImmutableList;
+import com.google.inject.Inject;
+import io.isima.bios.models.isql.ISqlStatement;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorRecordSetProvider;
 import io.trino.spi.connector.ConnectorSession;
@@ -24,19 +25,40 @@ import io.trino.spi.connector.RecordSet;
 
 import java.util.List;
 
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 public class BiosRecordSetProvider
         implements ConnectorRecordSetProvider
 {
+    private final BiosClient biosClient;
+
+    @Inject
+    public BiosRecordSetProvider(BiosClient biosClient)
+    {
+        this.biosClient = requireNonNull(biosClient, "biosClient is null");
+    }
+
     @Override
     public RecordSet getRecordSet(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, ConnectorTableHandle table, List<? extends ColumnHandle> columns)
     {
-        BiosSplit biosSplit = (BiosSplit) split;
+        List<BiosColumnHandle> biosColumnHandles = columns.stream()
+                .map(column -> (BiosColumnHandle) column)
+                .collect(toUnmodifiableList());
 
-        ImmutableList.Builder<BiosColumnHandle> handles = ImmutableList.builder();
-        for (ColumnHandle handle : columns) {
-            handles.add((BiosColumnHandle) handle);
-        }
+        // TODO make start and delta dynamically assignable per query.
+        long start = System.currentTimeMillis();
+        long delta = -(60 * 60 * 1000);
 
-        return new BiosRecordSet(biosSplit, handles.build());
+        String[] attributes = biosColumnHandles.stream()
+                .map(BiosColumnHandle::getColumnName)
+                .toArray(String[]::new);
+
+        ISqlStatement statement = ISqlStatement.select(attributes)
+                .from(((BiosTableHandle) table).getTableName())
+                .timeRange(start, delta)
+                .build();
+
+        return new BiosRecordSet(biosClient, statement, biosColumnHandles);
     }
 }

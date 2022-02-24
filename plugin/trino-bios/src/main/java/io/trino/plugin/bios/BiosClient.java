@@ -139,7 +139,7 @@ public class BiosClient
 
     public BiosTable getTable(String schemaName, String tableName)
     {
-        logger.debug("getTable: %s.%s", schemaName, tableName);
+        // logger.debug("getTable: %s.%s", schemaName, tableName);
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
 
@@ -194,5 +194,10 @@ public class BiosClient
     public URI getUrl()
     {
         return url;
+    }
+
+    public Session getSession()
+    {
+        return session.get();
     }
 }

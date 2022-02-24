@@ -13,37 +13,67 @@
  */
 package io.trino.plugin.bios;
 
-import com.google.common.base.Strings;
+import io.airlift.log.Logger;
 import io.airlift.slice.Slice;
 import io.airlift.slice.Slices;
+import io.isima.bios.models.DataWindow;
+import io.isima.bios.models.Record;
+import io.isima.bios.models.isql.ISqlResponse;
+import io.isima.bios.models.isql.ISqlStatement;
+import io.isima.bios.sdk.exceptions.BiosClientException;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.type.Type;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
+import static java.util.Objects.requireNonNull;
 
 public class BiosRecordCursor
         implements RecordCursor
 {
+    private static final Logger logger = Logger.get(BiosRecordCursor.class);
+
+    private final BiosClient biosClient;
+    private final ISqlStatement statement;
     private final List<BiosColumnHandle> columnHandles;
+    private Iterator<Record> records;
+    private Record currentRecord;
 
-    private final int totalRows;
-    private int currentRow;
-
-    private List<String> fields;
-
-    public BiosRecordCursor(List<BiosColumnHandle> columnHandles)
+    public BiosRecordCursor(BiosClient biosClient, ISqlStatement statement,
+                            List<BiosColumnHandle> columnHandles)
     {
-        this.columnHandles = columnHandles;
+        logger.debug("BiosRecordCursor: %s", statement.toString());
 
-        totalRows = 10;
-        currentRow = -1;
+        this.biosClient = requireNonNull(biosClient, "biosClient is null");
+        this.statement = requireNonNull(statement, "statement is null");
+        this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
+
+        ISqlResponse response;
+        try {
+            response = biosClient.getSession().execute(statement);
+        }
+        catch (BiosClientException e) {
+            throw new RuntimeException(e.toString());
+        }
+        logger.debug("BiosRecordCursor: %d windows, %d records",
+                response.getDataWindows().size(),
+                response.getRecords().size());
+
+        List<Record> data = new ArrayList<>();
+        for (DataWindow window : response.getDataWindows()) {
+            logger.debug("BiosRecordCursor: %d records", window.getRecords().size());
+            for (Record record : window.getRecords()) {
+                data.add(record);
+            }
+        }
+        records = data.iterator();
     }
 
     @Override
@@ -68,48 +98,40 @@ public class BiosRecordCursor
     @Override
     public boolean advanceNextPosition()
     {
-        currentRow++;
-        if (currentRow >= totalRows) {
+        if (records == null || !records.hasNext()) {
             return false;
         }
-        fields = List.of(String.format("row-%d", currentRow), String.format("%d", currentRow));
-
+        currentRecord = records.next();
         return true;
-    }
-
-    private String getFieldValue(int field)
-    {
-        checkState(fields != null, "Cursor has not been advanced yet");
-
-        return fields.get(field);
     }
 
     @Override
     public boolean getBoolean(int field)
     {
         checkFieldType(field, BOOLEAN);
-        return Boolean.parseBoolean(getFieldValue(field));
+        return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asBoolean();
     }
 
     @Override
     public long getLong(int field)
     {
         checkFieldType(field, BIGINT);
-        return Long.parseLong(getFieldValue(field));
+        return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
     }
 
     @Override
     public double getDouble(int field)
     {
         checkFieldType(field, DOUBLE);
-        return Double.parseDouble(getFieldValue(field));
+        return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asDouble();
     }
 
     @Override
     public Slice getSlice(int field)
     {
         checkFieldType(field, createUnboundedVarcharType());
-        return Slices.utf8Slice(getFieldValue(field));
+        return Slices.utf8Slice(
+                currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asString());
     }
 
     @Override
@@ -122,7 +144,7 @@ public class BiosRecordCursor
     public boolean isNull(int field)
     {
         checkArgument(field < columnHandles.size(), "Invalid field index");
-        return Strings.isNullOrEmpty(getFieldValue(field));
+        return false;
     }
 
     private void checkFieldType(int field, Type expected)

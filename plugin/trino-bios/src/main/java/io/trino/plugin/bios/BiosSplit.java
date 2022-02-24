@@ -26,36 +26,31 @@ import static java.util.Objects.requireNonNull;
 public class BiosSplit
         implements ConnectorSplit
 {
-    private final String url;
-    private final boolean remotelyAccessible;
-    private final List<HostAddress> addresses;
+    private final String tableName;
 
     @JsonCreator
-    public BiosSplit(@JsonProperty("url") String url)
+    public BiosSplit(@JsonProperty("tableName") String tableName)
     {
-        this.url = requireNonNull(url, "url is null");
-
-        remotelyAccessible = true;
-        addresses = ImmutableList.of(HostAddress.fromString(url));
+        this.tableName = requireNonNull(tableName, "tableName is null");
     }
 
     @JsonProperty
-    public String getUrl()
+    public String getTableName()
     {
-        return url;
+        return tableName;
     }
 
     @Override
     public boolean isRemotelyAccessible()
     {
         // only http or https is remotely accessible
-        return remotelyAccessible;
+        return true;
     }
 
     @Override
     public List<HostAddress> getAddresses()
     {
-        return addresses;
+        return ImmutableList.of();
     }
 
     @Override

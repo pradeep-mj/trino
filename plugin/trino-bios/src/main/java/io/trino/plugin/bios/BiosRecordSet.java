@@ -13,31 +13,33 @@
  */
 package io.trino.plugin.bios;
 
-import com.google.common.collect.ImmutableList;
+import io.isima.bios.models.isql.ISqlStatement;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.connector.RecordSet;
 import io.trino.spi.type.Type;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 
 public class BiosRecordSet
         implements RecordSet
 {
+    private final BiosClient biosClient;
+    private final ISqlStatement statement;
     private final List<BiosColumnHandle> columnHandles;
     private final List<Type> columnTypes;
 
-    public BiosRecordSet(BiosSplit split, List<BiosColumnHandle> columnHandles)
+    public BiosRecordSet(BiosClient biosClient, ISqlStatement statement,
+                         List<BiosColumnHandle> columnHandles)
     {
-        requireNonNull(split, "split is null");
-
+        this.biosClient = requireNonNull(biosClient, "biosClient is null");
+        this.statement = requireNonNull(statement, "statement is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
-        ImmutableList.Builder<Type> types = ImmutableList.builder();
-        for (BiosColumnHandle column : columnHandles) {
-            types.add(column.getColumnType());
-        }
-        this.columnTypes = types.build();
+        this.columnTypes = columnHandles.stream()
+                .map(BiosColumnHandle::getColumnType)
+                .collect(Collectors.toUnmodifiableList());
     }
 
     @Override
@@ -49,6 +51,6 @@ public class BiosRecordSet
     @Override
     public RecordCursor cursor()
     {
-        return new BiosRecordCursor(columnHandles);
+        return new BiosRecordCursor(biosClient, statement, columnHandles);
     }
 }
