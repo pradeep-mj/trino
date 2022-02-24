@@ -2,7 +2,12 @@
 title Isima bi(OS) plugin for Trino - class design
 
 left to right direction
-' top to bottom direction
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor<<Major>> moccasin
+    FontSize<<Major>> 15
+}
 
 class BiosConfig << (P, orange) >> {
     + URI url
@@ -10,9 +15,9 @@ class BiosConfig << (P, orange) >> {
     + String password
 }
 
-class BiosClient {
-    # @Inject Cons (BiosConfig, JsonCodec catalogCodec)
-    - url, email, password, Map schemas
+class BiosClient <<Major>> {
+    # @Inject Cons (BiosConfig, ...)
+    - url, email, password, session
     + getSchemaNames ()
     + getTableNames (String schema)
     + BiosTable getTable (schema, tableName)
@@ -24,22 +29,24 @@ interface ColumnHandle {
 }
 
 class BiosColumnHandle << (J, orangeRed) >> implements ColumnHandle {
-    + Cons (columnName, columnType, isKey)
+    + Cons (...)
     - String columnName
     - Type columnType
+    - BiosTableKind tableKind
     - boolean isKey
+    + getColumnMetadata ()
 }
 
 interface Connector {
     beginTransaction ()
-    getMetadata (session, txHandle)
+    getMetadata ()
     getSplitManager ()
     getRecordSetProvider ()
     shutdown ()
 }
 
 class BiosConnector implements Connector {
-    # @Inject Cons (lifeCycleManager, metadata, splitManager, recordSetProvider)
+    # @Inject Cons (...)
 }
 
 interface ConnectorFactory {
@@ -51,19 +58,19 @@ class BiosConnectorFactory implements ConnectorFactory {
 }
 
 interface ConnectorMetadata {
-    listSchemaNames (session)
-    getTableHandle (session, tableName)
-    getTableMetadata (session, table)
-    listTables (session, optionalSchemaName)
-    getColumnHandles (session, tableHandle)
-    listTableColumns (session, prefix)
-    getColumnMetadata (session, tableHandle, columnHandle)
-    getTableProperties (session, table)
+    listSchemaNames ()
+    getTableHandle ()
+    getTableMetadata ()
+    listTables ()
+    getColumnHandles ()
+    listTableColumns ()
+    getColumnMetadata ()
+    getTableProperties ()
 }
 
 class BiosMetadata implements ConnectorMetadata{
     # @Inject Cons (biosClient)
-    - getTableMetadata (session, schemaTableName)
+    - getTableMetadata (schemaTableName)
     - listTables (session, prefix)
 }
 
@@ -92,9 +99,13 @@ interface RecordCursor {
     getReadTimeNanos ()
 }
 
-class BiosRecordCursor implements RecordCursor {
-    + Cons (columnHandles)
-    - getFieldValue (int field)
+class BiosRecordCursor <<Major>> implements RecordCursor {
+    + Cons (client, statement, columnHandles)
+    - biosclient
+    - statement
+    - columnHandles
+    - records
+    - currentRecord
 }
 
 interface RecordSet {
@@ -110,7 +121,7 @@ interface ConnectorRecordSetProvider {
     getRecordSet (transaction, session, split, table, columns)
 }
 
-class BiosRecordSetProvider implements ConnectorRecordSetProvider {
+class BiosRecordSetProvider <<Major>> implements ConnectorRecordSetProvider {
 }
 
 interface ConnectorSplit {
@@ -125,11 +136,8 @@ class BiosSplit implements ConnectorSplit {
 }
 
 interface ConnectorSplitManager {
-    getSplits
-    (transaction, session, tableHandle, splitSchedulingStrategy, dynamicFilter, constraint)
+    getSplits ()
 }
-
-'ConnectorSplitManager::getSplits --> BiosSplit
 
 class BiosSplitManager implements ConnectorSplitManager {
     # @Inject Cons (biosClient)
@@ -141,14 +149,14 @@ enum BiosTableKind {
 }
 
 class BiosTable << (P, orange) >> {
-    + Cons (kind, name)
+    + Cons (...)
     - kind
     - tableHandle
     - columns
 }
 
 class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
-    + Cons (schemaName, tableName)
+    + Cons (...)
     - schemaName
     - tableName
     + toSchemaTableName ()
@@ -180,7 +188,11 @@ BiosClient ..> BiosConfig
 entity Show_Schemas
 Show_Schemas --> Connector
 Show_Schemas --> ConnectorMetadata
-BiosMetadata ..> BiosClient
+'BiosMetadata ..> BiosClient
+'BiosSplitManager ..> BiosClient
+'BiosRecordCursor ..> BiosClient
+'BiosRecordSet ..> BiosClient
+'BiosRecordSetProvider ..> BiosClient
 BiosClient ..> BiosTable
 BiosTable ..> BiosTableKind
 BiosTable ..> BiosTableHandle

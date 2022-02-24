@@ -57,13 +57,10 @@ public class BiosClient
         biosTypeMap.put("decimal", DOUBLE);
     }
 
-    /**
-     * SchemaName -> (TableName -> TableMetadata)
-     */
-    private final Supplier<Session> session;
     private final URI url;
     private final String email;
     private final String password;
+    private final Supplier<Session> session;
 
     @Inject
     public BiosClient(BiosConfig config, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
