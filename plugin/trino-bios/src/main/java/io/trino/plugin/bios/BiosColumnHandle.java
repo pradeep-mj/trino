@@ -29,6 +29,7 @@ public final class BiosColumnHandle
 {
     private final String columnName;
     private final Type columnType;
+    private final String defaultValue;
     private final BiosTableKind tableKind;
     private final boolean isKey;
 
@@ -36,11 +37,13 @@ public final class BiosColumnHandle
     public BiosColumnHandle(
             @JsonProperty("columnName") String columnName,
             @JsonProperty("columnType") Type columnType,
+            @JsonProperty("defaultValue") String defaultValue,
             @JsonProperty("tableKind") BiosTableKind tableKind,
             @JsonProperty("isKey") boolean isKey)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
+        this.defaultValue = defaultValue;
         this.tableKind = requireNonNull(tableKind, "tableKind is null");
         this.isKey = isKey;
     }
@@ -85,6 +88,9 @@ public final class BiosColumnHandle
         // other than the first one (the primary key).
         if ((tableKind == BiosTableKind.CONTEXT) && !isKey) {
             builder.setNullable(true);
+        }
+        if (defaultValue != null) {
+            builder.setComment(Optional.of(String.format("default: %s", defaultValue)));
         }
 
         return builder.build();

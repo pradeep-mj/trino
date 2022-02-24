@@ -150,7 +150,6 @@ enum BiosTableKind {
 
 class BiosTable << (P, orange) >> {
     + Cons (...)
-    - kind
     - tableHandle
     - columns
 }

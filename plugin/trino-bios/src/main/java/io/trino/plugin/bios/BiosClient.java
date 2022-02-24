@@ -149,41 +149,52 @@ public class BiosClient
         }
 
         BiosTableHandle tableHandle = new BiosTableHandle(schemaName, tableName);
+        BiosTableKind kind = null;
+        List<AttributeConfig> attributes = null;
         List<BiosColumnHandle> columns = new ArrayList<>();
         BiosTable table = null;
+        String defaultValue = null;
 
         if (schemaName.equals("signal")) {
+            kind = BiosTableKind.SIGNAL;
             for (SignalConfig signalConfig : tenantConfig.getSignals()) {
                 if (!tableName.equalsIgnoreCase(signalConfig.getName())) {
                     continue;
                 }
-                for (AttributeConfig attributeConfig : signalConfig.getAttributes()) {
-                    String columnName = attributeConfig.getName();
-                    Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
-                    BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                            BiosTableKind.SIGNAL, false);
-                    columns.add(columnHandle);
-                }
-                table = new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
+                attributes = signalConfig.getAttributes();
+                break;
             }
         }
         else if (schemaName.equals("context")) {
+            kind = BiosTableKind.CONTEXT;
             for (ContextConfig contextConfig : tenantConfig.getContexts()) {
                 if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
                     continue;
                 }
-                boolean isFirstAttribute = true;
-                for (AttributeConfig attributeConfig : contextConfig.getAttributes()) {
-                    String columnName = attributeConfig.getName();
-                    Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
-                    BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                            BiosTableKind.CONTEXT, isFirstAttribute);
-                    isFirstAttribute = false;
-                    columns.add(columnHandle);
-                }
-                table = new BiosTable(BiosTableKind.SIGNAL, tableHandle, columns);
+                attributes = contextConfig.getAttributes();
+                break;
             }
         }
+        if (attributes == null) {
+            return null;
+        }
+
+        boolean isFirstAttribute = true;
+        for (AttributeConfig attributeConfig : attributes) {
+            String columnName = attributeConfig.getName();
+            Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
+            if (attributeConfig.getDefaultValue() != null) {
+                defaultValue = attributeConfig.getDefaultValue().asString();
+            }
+            else {
+                defaultValue = null;
+            }
+            BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
+                    defaultValue, kind, (kind == BiosTableKind.CONTEXT) && isFirstAttribute);
+            isFirstAttribute = false;
+            columns.add(columnHandle);
+        }
+        table = new BiosTable(tableHandle, columns);
 
         return table;
     }

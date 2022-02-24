@@ -19,21 +19,14 @@ import static java.util.Objects.requireNonNull;
 
 public class BiosTable
 {
-    private final BiosTableKind kind;
     private final BiosTableHandle tableHandle;
     private final List<BiosColumnHandle> columns;
 
-    public BiosTable(BiosTableKind kind, BiosTableHandle tableHandle,
+    public BiosTable(BiosTableHandle tableHandle,
                      List<BiosColumnHandle> columns)
     {
-        this.kind = requireNonNull(kind, "kind is null");
         this.tableHandle = requireNonNull(tableHandle, "tableHandle is null");
         this.columns = requireNonNull(columns, "columns is null");
-    }
-
-    public BiosTableKind getKind()
-    {
-        return kind;
     }
 
     public BiosTableHandle getTableHandle()
