@@ -36,6 +36,7 @@ import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
+import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static java.util.Objects.requireNonNull;
 
@@ -171,12 +172,15 @@ public class BiosRecordCursor
     @Override
     public long getLong(int field)
     {
-        checkFieldType(field, BIGINT);
         // If this is the timestamp column, use getTimestamp instead of asking for an attribute.
         if (columnHandles.get(field).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN) ||
                 columnHandles.get(field).getColumnName().equals(CONTEXT_TIMESTAMP_COLUMN)) {
-            return currentRecord.getTimestamp();
+            checkFieldType(field, TIMESTAMP_MICROS);
+            // bios v1 uses milliseconds since epoch, but we want to use microseconds since epoch
+            // for v2 compatibility; convert to micros.
+            return currentRecord.getTimestamp() * 1000;
         }
+        checkFieldType(field, BIGINT);
         return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
     }
 

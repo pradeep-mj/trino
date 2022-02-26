@@ -42,6 +42,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
+import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
@@ -200,8 +201,8 @@ public class BiosClient
             isFirstAttribute = false;
             columns.add(columnHandle);
         }
-        columns.add(new BiosColumnHandle(timestampColumnName, BIGINT, null,
-                BiosTableKind.SIGNAL, false, true));
+        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, kind, false,
+                true));
 
         table = new BiosTable(tableHandle, columns);
 
