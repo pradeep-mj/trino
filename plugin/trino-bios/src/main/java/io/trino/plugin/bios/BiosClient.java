@@ -197,11 +197,11 @@ public class BiosClient
                 defaultValue = null;
             }
             BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                    defaultValue, kind, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, false);
+                    defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, false);
             isFirstAttribute = false;
             columns.add(columnHandle);
         }
-        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, kind, false,
+        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
                 true));
 
         table = new BiosTable(tableHandle, columns);

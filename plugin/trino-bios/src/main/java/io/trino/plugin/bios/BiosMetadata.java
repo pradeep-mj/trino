@@ -24,9 +24,12 @@ import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.ConnectorTableMetadata;
 import io.trino.spi.connector.ConnectorTableProperties;
+import io.trino.spi.connector.Constraint;
+import io.trino.spi.connector.ConstraintApplicationResult;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
+import io.trino.spi.predicate.TupleDomain;
 
 import javax.inject.Inject;
 
@@ -169,5 +172,23 @@ public class BiosMetadata
     {
         // logger.debug("getTableProperties");
         return new ConnectorTableProperties();
+    }
+
+    @Override
+    public Optional<ConstraintApplicationResult<ConnectorTableHandle>> applyFilter(ConnectorSession session, ConnectorTableHandle tableHandle, Constraint constraint)
+    {
+        BiosTableHandle handle = (BiosTableHandle) tableHandle;
+        Long timeRangeStart = null;
+        Long timeRangeDelta = null;
+        TupleDomain<ColumnHandle> unenforcedConstraint = null;
+
+        return Optional.of(
+                new ConstraintApplicationResult<>(new BiosTableHandle(
+                        handle.getSchemaName(),
+                        handle.getTableName(),
+                        timeRangeStart,
+                        timeRangeDelta),
+                    unenforcedConstraint,
+                    false));
     }
 }

@@ -20,6 +20,7 @@ import io.trino.spi.connector.SchemaTableName;
 
 import java.util.Objects;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 public final class BiosTableHandle
@@ -27,20 +28,48 @@ public final class BiosTableHandle
 {
     private final String schemaName;
     private final String tableName;
+    private final Long timeRangeStart;
+    private final Long timeRangeDelta;
 
     @JsonCreator
+    public BiosTableHandle(
+            @JsonProperty("schemaName") String schemaName,
+            @JsonProperty("tableName") String tableName,
+            @JsonProperty("timeRangeStart") Long timeRangeStart,
+            @JsonProperty("timeRangeDelta") Long timeRangeDelta)
+    {
+        this.schemaName = requireNonNull(schemaName, "schemaName is null");
+        this.tableName = requireNonNull(tableName, "tableName is null");
+        this.timeRangeStart = timeRangeStart;
+        this.timeRangeDelta = timeRangeDelta;
+    }
+
     public BiosTableHandle(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
+        this.timeRangeStart = null;
+        this.timeRangeDelta = null;
     }
 
     @JsonProperty
     public String getSchemaName()
     {
         return schemaName;
+    }
+
+    @JsonProperty
+    public Long getTimeRangeStart()
+    {
+        return timeRangeStart;
+    }
+
+    @JsonProperty
+    public Long getTimeRangeDelta()
+    {
+        return timeRangeDelta;
     }
 
     @JsonProperty
@@ -67,7 +96,7 @@ public final class BiosTableHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaName, tableName);
+        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta);
     }
 
     @Override
@@ -82,12 +111,20 @@ public final class BiosTableHandle
 
         BiosTableHandle other = (BiosTableHandle) obj;
         return Objects.equals(this.schemaName, other.schemaName) &&
-                Objects.equals(this.tableName, other.tableName);
+                Objects.equals(this.tableName, other.tableName) &&
+                Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
+                Objects.equals(this.timeRangeDelta, other.timeRangeDelta);
     }
 
     @Override
     public String toString()
     {
-        return schemaName + ":" + tableName;
+        return toStringHelper(this)
+                .add("schemaName", schemaName)
+                .add("tableName", tableName)
+                .add("timeRangeStart", timeRangeStart)
+                .add("timeRangeDelta", timeRangeDelta)
+                .omitNullValues()
+                .toString();
     }
 }

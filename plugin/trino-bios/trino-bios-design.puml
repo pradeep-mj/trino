@@ -5,6 +5,8 @@ left to right direction
 skinparam shadowing false
 
 skinparam class {
+    BackgroundColor<<Trino>> white
+    BorderColor<<Trino>> gray
     BackgroundColor<<Major>> moccasin
     FontSize<<Major>> 15
 }
@@ -23,7 +25,7 @@ class BiosClient <<Major>> {
     + BiosTable getTable (schema, tableName)
 }
 
-interface ColumnHandle {
+interface ColumnHandle <<Trino>> {
     + hashCode ()
     + equals (Object)
 }
@@ -32,13 +34,13 @@ class BiosColumnHandle << (J, orangeRed) >> implements ColumnHandle {
     + Cons (...)
     - String columnName
     - Type columnType
-    - BiosTableKind tableKind
+    - String defaultValue
     - boolean isKey
     - boolean isRecordTimestamp
     + getColumnMetadata ()
 }
 
-interface Connector {
+interface Connector <<Trino>> {
     beginTransaction ()
     getMetadata ()
     getSplitManager ()
@@ -50,7 +52,7 @@ class BiosConnector implements Connector {
     # @Inject Cons (...)
 }
 
-interface ConnectorFactory {
+interface ConnectorFactory <<Trino>> {
     getName ()
     create (catalogName, config, context)
 }
@@ -58,7 +60,7 @@ interface ConnectorFactory {
 class BiosConnectorFactory implements ConnectorFactory {
 }
 
-interface ConnectorMetadata {
+interface ConnectorMetadata <<Trino>> {
     listSchemaNames ()
     getTableHandle ()
     getTableMetadata ()
@@ -69,27 +71,27 @@ interface ConnectorMetadata {
     getTableProperties ()
 }
 
-class BiosMetadata implements ConnectorMetadata{
+class BiosMetadata implements ConnectorMetadata {
     # @Inject Cons (biosClient)
     - getTableMetadata (schemaTableName)
     - listTables (session, prefix)
 }
 
-interface Module {
+interface Module <<Trino>> {
   configure (binder)
 }
 
 class BiosModule implements Module {
 }
 
-interface Plugin {
+interface Plugin <<Trino>> {
     getConnectorFactories()
 }
 
 class BiosPlugin implements Plugin {
 }
 
-interface RecordCursor {
+interface RecordCursor <<Trino>> {
     getType (int field)
     getBoolean (int field)
     get... (int field)
@@ -109,7 +111,7 @@ class BiosRecordCursor <<Major>> implements RecordCursor {
     - currentRecord
 }
 
-interface RecordSet {
+interface RecordSet <<Trino>> {
     getColumnTypes ()
     cursor ()
 }
@@ -118,14 +120,14 @@ class BiosRecordSet implements RecordSet {
     + Cons (biosSplit, columnHandles)
 }
 
-interface ConnectorRecordSetProvider {
+interface ConnectorRecordSetProvider <<Trino>> {
     getRecordSet (transaction, session, split, table, columns)
 }
 
 class BiosRecordSetProvider implements ConnectorRecordSetProvider {
 }
 
-interface ConnectorSplit {
+interface ConnectorSplit <<Trino>> {
     isRemotelyAccessible ()
     getAddresses ()
     getInfo ()
@@ -136,7 +138,7 @@ class BiosSplit implements ConnectorSplit {
     + getTableName ()
 }
 
-interface ConnectorSplitManager {
+interface ConnectorSplitManager <<Trino>> {
     getSplits ()
 }
 
@@ -155,18 +157,24 @@ class BiosTable << (P, orange) >> {
     - columns
 }
 
+interface ConnectorTableHandle <<Trino>>
+
 class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
     + Cons (...)
-    - schemaName
-    - tableName
+    - String schemaName
+    - String tableName
+    - Long timeRangeStart
+    - Long timeRangeDelta
     + toSchemaTableName ()
 }
+
+interface ConnectorTransactionHandle <<Trino>>
 
 class BiosTransactionHandle implements ConnectorTransactionHandle {
     + INSTANCE
 }
 
-class ConnectorTableMetadata << (P, orange) >> {
+class ConnectorTableMetadata << (P, orange) >> <<Trino>> {
     - SchemaTableName
     - List<ColumnMetadata>
     - properties
@@ -174,7 +182,7 @@ class ConnectorTableMetadata << (P, orange) >> {
 }
 
 
-entity Process_Initialization
+entity Process_Initialization <<Trino>>
 Process_Initialization --> Module
 Process_Initialization --> Plugin
 Process_Initialization --> ConnectorFactory
@@ -185,7 +193,7 @@ Process_Initialization --> BiosConnector
 BiosConnectorFactory ..> BiosConfig
 BiosClient ..> BiosConfig
 
-entity Show_Schemas
+entity Show_Schemas <<Trino>>
 Show_Schemas --> Connector
 Show_Schemas --> ConnectorMetadata
 'BiosMetadata ..> BiosClient
@@ -198,10 +206,10 @@ BiosTable ..> BiosTableKind
 BiosTable ..> BiosTableHandle
 BiosTable ..> BiosColumnHandle
 
-entity Show_Tables
+entity Show_Tables <<Trino>>
 Show_Tables --> ConnectorMetadata
 
-entity StartSelect
+entity StartSelect <<Trino>>
 StartSelect --> ConnectorMetadata
 StartSelect --> ConnectorTransactionHandle
 StartSelect --> ConnectorTableHandle
@@ -212,7 +220,7 @@ StartSelect --> ConnectorRecordSetProvider
 StartSelect --> RecordSet
 BiosMetadata ..> ConnectorTableMetadata
 
-entity RetrieveData
+entity RetrieveData <<Trino>>
 RetrieveData --> RecordCursor
 
 
