@@ -27,9 +27,12 @@ import io.trino.spi.type.Type;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.isima.bios.models.isql.WhereClause.keys;
+import static io.trino.plugin.bios.BiosClient.CONTEXT_TIMESTAMP_COLUMN;
+import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -80,6 +83,8 @@ public class BiosRecordCursor
         if (records == null) {
             String[] attributes = columnHandles.stream()
                     .map(BiosColumnHandle::getColumnName)
+                    .filter(a -> !Objects.equals(a, SIGNAL_TIMESTAMP_COLUMN))
+                    .filter(a -> !Objects.equals(a, CONTEXT_TIMESTAMP_COLUMN))
                     .toArray(String[]::new);
             ISqlStatement statement;
 
@@ -142,6 +147,12 @@ public class BiosRecordCursor
                 data.addAll(window.getRecords());
             }
             records = data.iterator();
+
+            // if (data.size() > 0) {
+            //     logger.debug("First record: timestamp: %d", data.get(0).getTimestamp());
+            //     logger.debug("First record: %s", data.get(0).toString());
+            //     logger.debug("First record: %s", Arrays.toString(data.get(0).attributes().toArray()));
+            // }
         }
         if (!records.hasNext()) {
             return false;
@@ -161,6 +172,11 @@ public class BiosRecordCursor
     public long getLong(int field)
     {
         checkFieldType(field, BIGINT);
+        // If this is the timestamp column, use getTimestamp instead of asking for an attribute.
+        if (columnHandles.get(field).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN) ||
+                columnHandles.get(field).getColumnName().equals(CONTEXT_TIMESTAMP_COLUMN)) {
+            return currentRecord.getTimestamp();
+        }
         return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
     }
 

@@ -32,6 +32,7 @@ public final class BiosColumnHandle
     private final String defaultValue;
     private final BiosTableKind tableKind;
     private final boolean isKey;
+    private final boolean isRecordTimestamp;
 
     @JsonCreator
     public BiosColumnHandle(
@@ -39,13 +40,15 @@ public final class BiosColumnHandle
             @JsonProperty("columnType") Type columnType,
             @JsonProperty("defaultValue") String defaultValue,
             @JsonProperty("tableKind") BiosTableKind tableKind,
-            @JsonProperty("isKey") boolean isKey)
+            @JsonProperty("isKey") boolean isKey,
+            @JsonProperty("isRecordTimestamp") boolean isRecordTimestamp)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
         this.defaultValue = defaultValue;
         this.tableKind = requireNonNull(tableKind, "tableKind is null");
         this.isKey = isKey;
+        this.isRecordTimestamp = isRecordTimestamp;
     }
 
     @JsonProperty
@@ -72,6 +75,12 @@ public final class BiosColumnHandle
         return isKey;
     }
 
+    @JsonProperty
+    public boolean getIsRecordTimestamp()
+    {
+        return isRecordTimestamp;
+    }
+
     public ColumnMetadata getColumnMetadata()
     {
         String extraInfo = null;
@@ -86,6 +95,9 @@ public final class BiosColumnHandle
                 .setExtraInfo(Optional.ofNullable(extraInfo));
         if (defaultValue != null) {
             builder.setComment(Optional.of(String.format("default: %s", defaultValue)));
+        }
+        if (isRecordTimestamp) {
+            builder.setComment(Optional.of("virtual column"));
         }
 
         return builder.build();

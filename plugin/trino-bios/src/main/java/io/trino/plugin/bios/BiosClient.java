@@ -47,6 +47,9 @@ import static java.util.Objects.requireNonNull;
 
 public class BiosClient
 {
+    public static final String SIGNAL_TIMESTAMP_COLUMN = "__eventTimestamp";
+    public static final String CONTEXT_TIMESTAMP_COLUMN = "__upsertTimestamp";
+
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
 
@@ -154,9 +157,11 @@ public class BiosClient
         List<BiosColumnHandle> columns = new ArrayList<>();
         BiosTable table = null;
         String defaultValue = null;
+        String timestampColumnName = null;
 
         if (schemaName.equals("signal")) {
             kind = BiosTableKind.SIGNAL;
+            timestampColumnName = SIGNAL_TIMESTAMP_COLUMN;
             for (SignalConfig signalConfig : tenantConfig.getSignals()) {
                 if (!tableName.equalsIgnoreCase(signalConfig.getName())) {
                     continue;
@@ -167,6 +172,7 @@ public class BiosClient
         }
         else if (schemaName.equals("context")) {
             kind = BiosTableKind.CONTEXT;
+            timestampColumnName = CONTEXT_TIMESTAMP_COLUMN;
             for (ContextConfig contextConfig : tenantConfig.getContexts()) {
                 if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
                     continue;
@@ -190,10 +196,13 @@ public class BiosClient
                 defaultValue = null;
             }
             BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                    defaultValue, kind, (kind == BiosTableKind.CONTEXT) && isFirstAttribute);
+                    defaultValue, kind, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, false);
             isFirstAttribute = false;
             columns.add(columnHandle);
         }
+        columns.add(new BiosColumnHandle(timestampColumnName, BIGINT, null,
+                BiosTableKind.SIGNAL, false, true));
+
         table = new BiosTable(tableHandle, columns);
 
         return table;
