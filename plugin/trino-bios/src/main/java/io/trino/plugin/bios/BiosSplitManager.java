@@ -28,6 +28,7 @@ import io.trino.spi.connector.TableNotFoundException;
 import javax.inject.Inject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
@@ -55,6 +56,14 @@ public class BiosSplitManager
             Constraint constraint)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) connectorTableHandle;
+
+        logger.debug("getSplits %s %s; dynamicFilter: %s  %s  %s  %s; constraint: %s  %s  %s",
+                tableHandle.toSchemaTableName(), splitSchedulingStrategy,
+                dynamicFilter.getColumnsCovered(), dynamicFilter.getCurrentPredicate().toString(),
+                dynamicFilter.isComplete(), dynamicFilter.isAwaitable(),
+                constraint.getSummary().toString(), constraint.predicate().toString(),
+                Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
+
         BiosTable table = biosClient.getTable(tableHandle.getSchemaName(), tableHandle.getTableName());
 
         // this can happen if table is removed during a query

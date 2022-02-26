@@ -108,7 +108,7 @@ public class BiosClient
 
     public Set<String> getTableNames(String schemaName)
     {
-        logger.debug("getTableNames: %s", schemaName);
+        // logger.debug("getTableNames: %s", schemaName);
         requireNonNull(schemaName, "schemaName is null");
 
         TenantConfig tenantConfig;

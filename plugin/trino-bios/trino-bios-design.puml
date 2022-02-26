@@ -121,7 +121,7 @@ interface ConnectorRecordSetProvider {
     getRecordSet (transaction, session, split, table, columns)
 }
 
-class BiosRecordSetProvider <<Major>> implements ConnectorRecordSetProvider {
+class BiosRecordSetProvider implements ConnectorRecordSetProvider {
 }
 
 interface ConnectorSplit {

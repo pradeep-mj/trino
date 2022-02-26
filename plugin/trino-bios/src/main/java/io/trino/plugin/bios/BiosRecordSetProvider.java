@@ -14,7 +14,7 @@
 package io.trino.plugin.bios;
 
 import com.google.inject.Inject;
-import io.isima.bios.models.isql.ISqlStatement;
+import io.airlift.log.Logger;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorRecordSetProvider;
 import io.trino.spi.connector.ConnectorSession;
@@ -31,6 +31,8 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 public class BiosRecordSetProvider
         implements ConnectorRecordSetProvider
 {
+    private static final Logger logger = Logger.get(BiosRecordSetProvider.class);
+
     private final BiosClient biosClient;
 
     @Inject
@@ -47,27 +49,11 @@ public class BiosRecordSetProvider
         List<BiosColumnHandle> biosColumnHandles = columns.stream()
                 .map(column -> (BiosColumnHandle) column)
                 .collect(toUnmodifiableList());
-        String[] attributes = biosColumnHandles.stream()
-                .map(BiosColumnHandle::getColumnName)
-                .toArray(String[]::new);
 
-        // TODO make start and delta dynamically assignable per query.
-        long start = System.currentTimeMillis();
-        long delta = -(60 * 60 * 1000);
+        // logger.debug("getRecordSet %s (%s): %s  %s  %s",
+        //         tableHandle.toSchemaTableName(), session.getQueryId(),
+        //         session.getSource(), session.getStart(), session.getTraceToken());
 
-        ISqlStatement statement;
-        if (tableHandle.getKind() == BiosTableKind.SIGNAL) {
-            statement = ISqlStatement.select(attributes)
-                    .from(tableHandle.getTableName())
-                    .timeRange(start, delta)
-                    .build();
-        }
-        else {
-            statement = ISqlStatement.select(biosColumnHandles.get(0).getColumnName())
-                    .fromContext(tableHandle.getTableName())
-                    .build();
-        }
-
-        return new BiosRecordSet(biosClient, statement, biosColumnHandles);
+        return new BiosRecordSet(biosClient, tableHandle, biosColumnHandles);
     }
 }

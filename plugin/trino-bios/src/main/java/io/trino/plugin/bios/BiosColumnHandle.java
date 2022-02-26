@@ -84,11 +84,6 @@ public final class BiosColumnHandle
                 .setType(columnType)
                 .setNullable(false)
                 .setExtraInfo(Optional.ofNullable(extraInfo));
-        // Contexts only support listing the primary key attribute; return null for all columns
-        // other than the first one (the primary key).
-        if ((tableKind == BiosTableKind.CONTEXT) && !isKey) {
-            builder.setNullable(true);
-        }
         if (defaultValue != null) {
             builder.setComment(Optional.of(String.format("default: %s", defaultValue)));
         }

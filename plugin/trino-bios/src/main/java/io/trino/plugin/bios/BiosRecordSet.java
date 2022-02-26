@@ -13,7 +13,6 @@
  */
 package io.trino.plugin.bios;
 
-import io.isima.bios.models.isql.ISqlStatement;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.connector.RecordSet;
 import io.trino.spi.type.Type;
@@ -27,15 +26,15 @@ public class BiosRecordSet
         implements RecordSet
 {
     private final BiosClient biosClient;
-    private final ISqlStatement statement;
+    private final BiosTableHandle tableHandle;
     private final List<BiosColumnHandle> columnHandles;
     private final List<Type> columnTypes;
 
-    public BiosRecordSet(BiosClient biosClient, ISqlStatement statement,
+    public BiosRecordSet(BiosClient biosClient, BiosTableHandle tableHandle,
                          List<BiosColumnHandle> columnHandles)
     {
         this.biosClient = requireNonNull(biosClient, "biosClient is null");
-        this.statement = requireNonNull(statement, "statement is null");
+        this.tableHandle = requireNonNull(tableHandle, "statement is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
         this.columnTypes = columnHandles.stream()
                 .map(BiosColumnHandle::getColumnType)
@@ -51,6 +50,6 @@ public class BiosRecordSet
     @Override
     public RecordCursor cursor()
     {
-        return new BiosRecordCursor(biosClient, statement, columnHandles);
+        return new BiosRecordCursor(biosClient, tableHandle, columnHandles);
     }
 }

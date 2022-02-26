@@ -60,7 +60,7 @@ public class BiosMetadata
     @Override
     public BiosTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        logger.debug("getTableHandle");
+        // logger.debug("getTableHandle");
         if (!listSchemaNames(session).contains(tableName.getSchemaName())) {
             return null;
         }
