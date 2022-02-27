@@ -27,6 +27,7 @@ import io.isima.bios.models.TenantConfig;
 import io.isima.bios.sdk.Bios;
 import io.isima.bios.sdk.Session;
 import io.isima.bios.sdk.exceptions.BiosClientException;
+import io.trino.spi.TrinoException;
 import io.trino.spi.type.Type;
 
 import java.util.ArrayList;
@@ -38,6 +39,8 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static io.isima.bios.sdk.errors.BiosClientError.SESSION_EXPIRED;
+import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -61,7 +64,7 @@ public class BiosClient
     }
 
     private final BiosConfig biosConfig;
-    private final Supplier<Session> session;
+    private Supplier<Session> session;
 
     @Inject
     public BiosClient(BiosConfig config, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
@@ -78,27 +81,55 @@ public class BiosClient
         session = Suppliers.memoize(sessionSupplier(config));
     }
 
-    private static Supplier<Session> sessionSupplier(BiosConfig config)
+    private static Supplier<Session> sessionSupplier(BiosConfig biosConfig)
     {
         return () -> {
             Session session;
             try {
-                logger.debug("sessionSupplier: %s (%s), %s, %s", config.getUrl().toString(),
-                        config.getUrl().getHost(),
-                        config.getEmail(),
-                        config.getPassword());
-                session = Bios.newSession(config.getUrl().getHost(), 443)
-                        .user(config.getEmail())
-                        .password(config.getPassword())
+                logger.debug("sessionSupplier: %s (%s), %s, %s", biosConfig.getUrl().toString(),
+                        biosConfig.getUrl().getHost(),
+                        biosConfig.getEmail(),
+                        biosConfig.getPassword());
+                session = Bios.newSession(biosConfig.getUrl().getHost(), 443)
+                        .user(biosConfig.getEmail())
+                        .password(biosConfig.getPassword())
                         .sslCertFile(null)
                         .connect();
                 logger.debug("sessionSupplier: done");
                 return session;
             }
             catch (BiosClientException e) {
+                // Cannot call handleException() here because it may cause recursion.
                 throw new RuntimeException(e.toString());
             }
         };
+    }
+
+    /**
+     * This method always throws a RuntimeException.
+     * For some input exceptions it may do some additional handling before throwing the exception.
+     * Calling code can assume that an exception will be thrown after this method is called,
+     * e.g. for accessing variables initialized inside a try/catch block.
+     */
+    public void handleException(Exception e)
+    {
+        if (e instanceof BiosClientException) {
+            BiosClientException biosClientException = (BiosClientException) e;
+            if (biosClientException.getCode().equals(SESSION_EXPIRED)) {
+                logger.debug("Session expired: %s \n\n Attempting to create a new session...",
+                        biosClientException.toString());
+                session = Suppliers.memoize(sessionSupplier(biosConfig));
+                session.get();
+                throw new TrinoException(GENERIC_INTERNAL_ERROR, "bi(OS) session expired and "
+                        + "has been reestablished; please retry the query.");
+            }
+            else {
+                throw new RuntimeException(biosClientException.toString());
+            }
+        }
+        else {
+            throw new RuntimeException(e.toString());
+        }
     }
 
     public List<String> getSchemaNames()
@@ -111,12 +142,12 @@ public class BiosClient
         // logger.debug("getTableNames: %s", schemaName);
         requireNonNull(schemaName, "schemaName is null");
 
-        TenantConfig tenantConfig;
+        TenantConfig tenantConfig = null;
         try {
             tenantConfig = session.get().getTenant(true, true);
         }
         catch (BiosClientException e) {
-            throw new RuntimeException(e.toString());
+            handleException(e);
         }
         List<String> tableNames = new ArrayList<>();
 
@@ -140,12 +171,12 @@ public class BiosClient
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
 
-        TenantConfig tenantConfig;
+        TenantConfig tenantConfig = null;
         try {
             tenantConfig = session.get().getTenant(true, true);
         }
         catch (BiosClientException e) {
-            throw new RuntimeException(e.toString());
+            handleException(e);
         }
 
         BiosTableHandle tableHandle = new BiosTableHandle(schemaName, tableName);

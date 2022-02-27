@@ -125,12 +125,12 @@ public class BiosRecordCursor
                 ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
                         .fromContext(tableHandle.getTableName())
                         .build();
-                ISqlResponse preliminaryResponse;
+                ISqlResponse preliminaryResponse = null;
                 try {
                     preliminaryResponse = biosClient.getSession().execute(preliminaryStatement);
                 }
                 catch (BiosClientException e) {
-                    throw new RuntimeException(e.toString());
+                    biosClient.handleException(e);
                 }
                 logger.debug("BiosRecordCursor: preliminaryResponse %d windows, %d records",
                         preliminaryResponse.getDataWindows().size(),
@@ -145,12 +145,12 @@ public class BiosRecordCursor
                         .build();
             }
 
-            ISqlResponse response;
+            ISqlResponse response = null;
             try {
                 response = biosClient.getSession().execute(statement);
             }
             catch (BiosClientException e) {
-                throw new RuntimeException(e.toString());
+                biosClient.handleException(e);
             }
             logger.debug("BiosRecordCursor: %d windows, %d records",
                     response.getDataWindows().size(),
