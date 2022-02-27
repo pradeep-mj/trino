@@ -24,6 +24,7 @@ public class BiosConfig
     private URI url;
     private String email;
     private String password;
+    private Long defaultTimeRangeDeltaSeconds;
 
     @NotNull
     public URI getUrl()
@@ -61,6 +62,19 @@ public class BiosConfig
     public BiosConfig setPassword(String password)
     {
         this.password = password;
+        return this;
+    }
+
+    @NotNull
+    public Long getDefaultTimeRangeDeltaSeconds()
+    {
+        return defaultTimeRangeDeltaSeconds;
+    }
+
+    @Config("bios.defaultTimeRangeDeltaSeconds")
+    public BiosConfig setDefaultTimeRangeDeltaSeconds(Long defaultTimeRangeDeltaSeconds)
+    {
+        this.defaultTimeRangeDeltaSeconds = defaultTimeRangeDeltaSeconds;
         return this;
     }
 }

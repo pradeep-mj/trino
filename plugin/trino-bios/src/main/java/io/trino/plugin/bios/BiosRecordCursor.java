@@ -92,9 +92,23 @@ public class BiosRecordCursor
             if (tableHandle.getKind() == BiosTableKind.SIGNAL) {
                 // For signals, make a simple time-range query.
 
-                // TODO make start and delta dynamically assignable per query.
-                long start = System.currentTimeMillis();
-                long delta = -(60 * 60 * 1000);
+                long start;
+                long delta;
+                if (tableHandle.getTimeRangeStart() != null) {
+                    start = tableHandle.getTimeRangeStart();
+                    delta = tableHandle.getTimeRangeDelta();
+                    logger.debug("Using provided start %d, delta %d", start, delta);
+                }
+                else {
+                    start = System.currentTimeMillis();
+                    if (biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds() != null) {
+                        delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
+                    }
+                    else {
+                        // Use 1 hour if no default is configured.
+                        delta = -1000 * 60 * 60;
+                    }
+                }
                 statement = ISqlStatement.select(attributes)
                         .from(tableHandle.getTableName())
                         .timeRange(start, delta)

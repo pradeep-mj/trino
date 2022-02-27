@@ -29,7 +29,6 @@ import io.isima.bios.sdk.Session;
 import io.isima.bios.sdk.exceptions.BiosClientException;
 import io.trino.spi.type.Type;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,9 +60,7 @@ public class BiosClient
         biosTypeMap.put("decimal", DOUBLE);
     }
 
-    private final URI url;
-    private final String email;
-    private final String password;
+    private final BiosConfig biosConfig;
     private final Supplier<Session> session;
 
     @Inject
@@ -72,28 +69,27 @@ public class BiosClient
         requireNonNull(config, "config is null");
         requireNonNull(catalogCodec, "catalogCodec is null");
 
-        url = config.getUrl();
-        requireNonNull(url, "url is null");
+        requireNonNull(config.getUrl(), "url is null");
+        checkArgument(!isNullOrEmpty(config.getEmail()), "email is null");
+        checkArgument(!isNullOrEmpty(config.getPassword()), "password is null");
 
-        email = config.getEmail();
-        password = config.getPassword();
-        checkArgument(!isNullOrEmpty(email), "email is null");
-        checkArgument(!isNullOrEmpty(password), "password is null");
+        this.biosConfig = config;
 
-        session = Suppliers.memoize(sessionSupplier(url, email, password));
+        session = Suppliers.memoize(sessionSupplier(config));
     }
 
-    private static Supplier<Session> sessionSupplier(URI url, String email, String password)
+    private static Supplier<Session> sessionSupplier(BiosConfig config)
     {
         return () -> {
             Session session;
             try {
-                logger.debug("sessionSupplier: %s (%s), %s, %s", url.toString(), url.getHost(),
-                        email,
-                        password);
-                session = Bios.newSession(url.getHost(), 443)
-                        .user(email)
-                        .password(password)
+                logger.debug("sessionSupplier: %s (%s), %s, %s", config.getUrl().toString(),
+                        config.getUrl().getHost(),
+                        config.getEmail(),
+                        config.getPassword());
+                session = Bios.newSession(config.getUrl().getHost(), 443)
+                        .user(config.getEmail())
+                        .password(config.getPassword())
                         .sslCertFile(null)
                         .connect();
                 logger.debug("sessionSupplier: done");
@@ -209,9 +205,9 @@ public class BiosClient
         return table;
     }
 
-    public URI getUrl()
+    public BiosConfig getBiosConfig()
     {
-        return url;
+        return biosConfig;
     }
 
     public Session getSession()

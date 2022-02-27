@@ -29,15 +29,18 @@ import io.trino.spi.connector.ConstraintApplicationResult;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
+import io.trino.spi.predicate.SortedRangeSet;
 import io.trino.spi.predicate.TupleDomain;
 
 import javax.inject.Inject;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
@@ -178,17 +181,58 @@ public class BiosMetadata
     public Optional<ConstraintApplicationResult<ConnectorTableHandle>> applyFilter(ConnectorSession session, ConnectorTableHandle tableHandle, Constraint constraint)
     {
         BiosTableHandle handle = (BiosTableHandle) tableHandle;
+        Long timeRangeLow = null;
+        Long timeRangeHigh = null;
         Long timeRangeStart = null;
         Long timeRangeDelta = null;
-        TupleDomain<ColumnHandle> unenforcedConstraint = null;
+        Optional<ConstraintApplicationResult<ConnectorTableHandle>> result = Optional.empty();
 
-        return Optional.of(
-                new ConstraintApplicationResult<>(new BiosTableHandle(
-                        handle.getSchemaName(),
-                        handle.getTableName(),
-                        timeRangeStart,
-                        timeRangeDelta),
-                    unenforcedConstraint,
+        logger.debug("applyFilter %s: constraint: %s  %s  %s",
+                handle.toSchemaTableName(),
+                constraint.getSummary().toString(), constraint.predicate().toString(),
+                Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
+
+        // Currently, we only support pushdown of single range predicates on signal timestamp.
+        if (constraint.getSummary().getDomains().isEmpty()) {
+            return Optional.empty();
+        }
+        for (var entry : constraint.getSummary().getDomains().get().entrySet()) {
+            if (!((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN)) {
+                return Optional.empty();
+            }
+            var valueSet = entry.getValue().getValues();
+            if (!(valueSet instanceof SortedRangeSet)) {
+                return Optional.empty();
+            }
+            var sortedRangeSet = (SortedRangeSet) valueSet;
+            if ((sortedRangeSet.getRangeCount() != 1) || sortedRangeSet.isAll() || sortedRangeSet.isNone() || sortedRangeSet.isDiscreteSet()) {
+                return Optional.empty();
+            }
+            var range = sortedRangeSet.getOrderedRanges().get(0);
+            if (range.getLowValue().isPresent()) {
+                timeRangeLow = (Long) range.getLowValue().get() / 1000;
+                logger.debug("timeRangeLow provided: %d", timeRangeLow);
+            }
+            else {
+                timeRangeLow = 0L;
+            }
+            if (range.getHighValue().isPresent()) {
+                timeRangeHigh = (Long) range.getHighValue().get() / 1000;
+                logger.debug("timeRangeHigh provided: %d", timeRangeHigh);
+            }
+            else {
+                timeRangeHigh = System.currentTimeMillis();
+            }
+            timeRangeStart = timeRangeLow;
+            timeRangeDelta = timeRangeHigh - timeRangeLow;
+            result = Optional.of(new ConstraintApplicationResult<>(
+                    new BiosTableHandle(handle.getSchemaName(), handle.getTableName(),
+                            timeRangeStart, timeRangeDelta),
+                    TupleDomain.all(),
                     false));
+        }
+
+        logger.debug("pushdown: timeRangeStart %d, timeRangeDelta %d", timeRangeStart, timeRangeDelta);
+        return result;
     }
 }

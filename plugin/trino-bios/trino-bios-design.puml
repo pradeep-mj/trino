@@ -15,11 +15,13 @@ class BiosConfig << (P, orange) >> {
     + URI url
     + String email
     + String password
+    + Long defaultTimerangeDeltaSeconds
 }
 
 class BiosClient <<Major>> {
     # @Inject Cons (BiosConfig, ...)
-    - url, email, password, session
+    - biosConfig
+    - session
     + getSchemaNames ()
     + getTableNames (String schema)
     + BiosTable getTable (schema, tableName)
@@ -71,7 +73,7 @@ interface ConnectorMetadata <<Trino>> {
     getTableProperties ()
 }
 
-class BiosMetadata implements ConnectorMetadata {
+class BiosMetadata <<Major>> implements ConnectorMetadata {
     # @Inject Cons (biosClient)
     - getTableMetadata (schemaTableName)
     - listTables (session, prefix)
