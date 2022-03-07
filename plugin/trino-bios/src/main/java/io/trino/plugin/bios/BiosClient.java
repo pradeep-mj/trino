@@ -45,6 +45,7 @@ import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
+import static io.trino.spi.type.VarbinaryType.VARBINARY;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
@@ -61,6 +62,7 @@ public class BiosClient
         biosTypeMap.put("boolean", BOOLEAN);
         biosTypeMap.put("string", VARCHAR);
         biosTypeMap.put("decimal", DOUBLE);
+        biosTypeMap.put("blob", VARBINARY);
     }
 
     private final BiosConfig biosConfig;
@@ -113,11 +115,11 @@ public class BiosClient
      */
     public void handleException(Exception e)
     {
+        logger.debug("bi(OS) got exception: %s", e.toString());
         if (e instanceof BiosClientException) {
             BiosClientException biosClientException = (BiosClientException) e;
             if (biosClientException.getCode().equals(SESSION_EXPIRED)) {
-                logger.debug("Session expired: %s \n\n Attempting to create a new session...",
-                        biosClientException.toString());
+                logger.debug("Session expired: \n\n Attempting to create a new session...");
                 session = Suppliers.memoize(sessionSupplier(biosConfig));
                 session.get();
                 throw new TrinoException(GENERIC_INTERNAL_ERROR, "bi(OS) session expired and "
