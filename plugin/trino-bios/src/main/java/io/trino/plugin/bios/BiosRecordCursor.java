@@ -37,7 +37,8 @@ import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
-import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
+import static io.trino.spi.type.VarbinaryType.VARBINARY;
+import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
 public class BiosRecordCursor
@@ -208,9 +209,20 @@ public class BiosRecordCursor
     @Override
     public Slice getSlice(int field)
     {
-        checkFieldType(field, createUnboundedVarcharType());
-        return Slices.utf8Slice(
-                currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asString());
+        Type type = getType(field);
+        if (type.equals(VARCHAR)) {
+            return Slices.utf8Slice(
+                    currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asString());
+        }
+        else if (type.equals(VARBINARY)) {
+            return Slices.wrappedBuffer(
+                    currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asByteArray());
+        }
+        else {
+            checkArgument(false, "Expected field %s to be type VARCHAR or VARBINARY, but is %s",
+                    field, type);
+            return null;
+        }
     }
 
     @Override
