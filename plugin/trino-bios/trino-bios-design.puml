@@ -71,6 +71,7 @@ interface ConnectorMetadata <<Trino>> {
     listTableColumns ()
     getColumnMetadata ()
     getTableProperties ()
+    applyFilter ()
 }
 
 class BiosMetadata <<Major>> implements ConnectorMetadata {
@@ -159,6 +160,15 @@ class BiosTable << (P, orange) >> {
     - columns
 }
 
+class BiosStatement << (J, orangeRed) >> {
+    + Cons (...)
+    - String tableKind
+    - String tableName
+    - String[] attributes
+    - Long timeRangeStart
+    - Long timeRangeDelta
+}
+
 interface ConnectorTableHandle <<Trino>>
 
 class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
@@ -204,6 +214,7 @@ Show_Schemas --> ConnectorMetadata
 'BiosRecordSet ..> BiosClient
 'BiosRecordSetProvider ..> BiosClient
 BiosClient ..> BiosTable
+BiosClient ..> BiosStatement
 BiosTable ..> BiosTableKind
 BiosTable ..> BiosTableHandle
 BiosTable ..> BiosColumnHandle

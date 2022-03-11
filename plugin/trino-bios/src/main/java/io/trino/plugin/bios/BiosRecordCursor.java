@@ -20,7 +20,6 @@ import io.isima.bios.models.DataWindow;
 import io.isima.bios.models.Record;
 import io.isima.bios.models.isql.ISqlResponse;
 import io.isima.bios.models.isql.ISqlStatement;
-import io.isima.bios.sdk.exceptions.BiosClientException;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.type.Type;
 
@@ -83,6 +82,7 @@ public class BiosRecordCursor
     public boolean advanceNextPosition()
     {
         if (records == null) {
+            logger.debug("bios starting query on table %s ...", tableHandle.getTableName());
             String[] attributes = columnHandles.stream()
                     .map(BiosColumnHandle::getColumnName)
                     .filter(a -> !Objects.equals(a, SIGNAL_TIMESTAMP_COLUMN))
@@ -126,16 +126,7 @@ public class BiosRecordCursor
                 ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
                         .fromContext(tableHandle.getTableName())
                         .build();
-                ISqlResponse preliminaryResponse = null;
-                try {
-                    preliminaryResponse = biosClient.getSession().execute(preliminaryStatement);
-                }
-                catch (BiosClientException e) {
-                    biosClient.handleException(e);
-                }
-                logger.debug("BiosRecordCursor: preliminaryResponse %d windows, %d records",
-                        preliminaryResponse.getDataWindows().size(),
-                        preliminaryResponse.getRecords().size());
+                ISqlResponse preliminaryResponse = biosClient.execute(preliminaryStatement);
                 String[] keyValues = preliminaryResponse.getRecords().stream()
                         .map(r -> r.getAttribute(keyColumnName).asString())
                         .toArray(String[]::new);
@@ -146,17 +137,7 @@ public class BiosRecordCursor
                         .build();
             }
 
-            ISqlResponse response = null;
-            try {
-                response = biosClient.getSession().execute(statement);
-            }
-            catch (BiosClientException e) {
-                biosClient.handleException(e);
-            }
-            logger.debug("BiosRecordCursor: %d windows, %d records",
-                    response.getDataWindows().size(),
-                    response.getRecords().size());
-
+            ISqlResponse response = biosClient.execute(statement);
             List<Record> data = new ArrayList<>(response.getRecords());
             for (DataWindow window : response.getDataWindows()) {
                 logger.debug("BiosRecordCursor: %d records", window.getRecords().size());

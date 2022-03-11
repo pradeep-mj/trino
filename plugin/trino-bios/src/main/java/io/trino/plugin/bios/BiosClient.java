@@ -24,6 +24,8 @@ import io.isima.bios.models.AttributeConfig;
 import io.isima.bios.models.ContextConfig;
 import io.isima.bios.models.SignalConfig;
 import io.isima.bios.models.TenantConfig;
+import io.isima.bios.models.isql.ISqlResponse;
+import io.isima.bios.models.isql.ISqlStatement;
 import io.isima.bios.sdk.Bios;
 import io.isima.bios.sdk.Session;
 import io.isima.bios.sdk.exceptions.BiosClientException;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
@@ -67,6 +70,7 @@ public class BiosClient
 
     private final BiosConfig biosConfig;
     private Supplier<Session> session;
+    private Supplier<TenantConfig> tenantConfig;
 
     @Inject
     public BiosClient(BiosConfig config, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
@@ -81,6 +85,36 @@ public class BiosClient
         this.biosConfig = config;
 
         session = Suppliers.memoize(sessionSupplier(config));
+        tenantConfig = Suppliers.memoizeWithExpiration(tenantConfigSupplier(this),
+                config.getMetadataExpirationSeconds(), TimeUnit.SECONDS);
+        tenantConfig.get();
+    }
+
+    /**
+     * This method always throws a RuntimeException.
+     * For some input exceptions it may do some additional handling before throwing the exception.
+     * Calling code can assume that an exception will be thrown after this method is called,
+     * e.g. for accessing variables initialized inside a try/catch block.
+     */
+    private void handleException(Exception e)
+    {
+        logger.debug("bi(OS) got exception: %s", e.toString());
+        if (e instanceof BiosClientException) {
+            BiosClientException biosClientException = (BiosClientException) e;
+            if (biosClientException.getCode().equals(SESSION_EXPIRED)) {
+                logger.debug("Session expired: \n\n Attempting to create a new session...");
+                session = Suppliers.memoize(sessionSupplier(biosConfig));
+                session.get();
+                throw new TrinoException(GENERIC_INTERNAL_ERROR, "bi(OS) session expired and "
+                        + "has been reestablished; please retry the query.");
+            }
+            else {
+                throw new RuntimeException(biosClientException.toString());
+            }
+        }
+        else {
+            throw new RuntimeException(e.toString());
+        }
     }
 
     private static Supplier<Session> sessionSupplier(BiosConfig biosConfig)
@@ -107,31 +141,55 @@ public class BiosClient
         };
     }
 
-    /**
-     * This method always throws a RuntimeException.
-     * For some input exceptions it may do some additional handling before throwing the exception.
-     * Calling code can assume that an exception will be thrown after this method is called,
-     * e.g. for accessing variables initialized inside a try/catch block.
-     */
-    public void handleException(Exception e)
+    private static Supplier<TenantConfig> tenantConfigSupplier(final BiosClient client)
     {
-        logger.debug("bi(OS) got exception: %s", e.toString());
-        if (e instanceof BiosClientException) {
-            BiosClientException biosClientException = (BiosClientException) e;
-            if (biosClientException.getCode().equals(SESSION_EXPIRED)) {
-                logger.debug("Session expired: \n\n Attempting to create a new session...");
-                session = Suppliers.memoize(sessionSupplier(biosConfig));
-                session.get();
-                throw new TrinoException(GENERIC_INTERNAL_ERROR, "bi(OS) session expired and "
-                        + "has been reestablished; please retry the query.");
+        return () -> {
+            TenantConfig tenantConfig = null;
+            try {
+                logger.debug("--- bios network request: getTenant");
+                tenantConfig = client.getSession().getTenant(true, true);
             }
-            else {
-                throw new RuntimeException(biosClientException.toString());
+            catch (BiosClientException e) {
+                client.handleException(e);
             }
+            logger.debug("    bios network request: getTenant %s returned %d signals, %d contexts",
+                    tenantConfig.getName(), tenantConfig.getSignals().size(),
+                    tenantConfig.getContexts().size());
+            return tenantConfig;
+        };
+    }
+
+    public ISqlResponse execute(BiosStatement statement)
+    {
+        ISqlStatement isqlStatement;
+        if (statement.getTableKind() == BiosTableKind.SIGNAL) {
+            isqlStatement = ISqlStatement.select(statement.getAttributes())
+                    .from(statement.getTableName())
+                    .timeRange(statement.getTimeRangeStart(), statement.getTimeRangeDelta())
+                    .build();
         }
         else {
-            throw new RuntimeException(e.toString());
+            isqlStatement = ISqlStatement.select(statement.getAttributes())
+                    .fromContext(statement.getTableName())
+                    .build();
         }
+        return execute(isqlStatement);
+    }
+
+    public ISqlResponse execute(ISqlStatement statement)
+    {
+        ISqlResponse response = null;
+        try {
+            logger.debug("--- bios network request: statement %s", statement);
+            response = session.get().execute(statement);
+        }
+        catch (BiosClientException e) {
+            handleException(e);
+        }
+        logger.debug("   bios network request: statement returned %d windows, %d records",
+                response.getDataWindows().size(),
+                response.getRecords().size());
+        return response;
     }
 
     public List<String> getSchemaNames()
@@ -144,22 +202,15 @@ public class BiosClient
         // logger.debug("getTableNames: %s", schemaName);
         requireNonNull(schemaName, "schemaName is null");
 
-        TenantConfig tenantConfig = null;
-        try {
-            tenantConfig = session.get().getTenant(true, true);
-        }
-        catch (BiosClientException e) {
-            handleException(e);
-        }
         List<String> tableNames = new ArrayList<>();
 
         if (schemaName.equals("signal")) {
-            for (SignalConfig signalConfig : tenantConfig.getSignals()) {
+            for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                 tableNames.add(signalConfig.getName());
             }
         }
         else if (schemaName.equals("context")) {
-            for (ContextConfig contextConfig : tenantConfig.getContexts()) {
+            for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
                 tableNames.add(contextConfig.getName());
             }
         }
@@ -173,14 +224,6 @@ public class BiosClient
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
 
-        TenantConfig tenantConfig = null;
-        try {
-            tenantConfig = session.get().getTenant(true, true);
-        }
-        catch (BiosClientException e) {
-            handleException(e);
-        }
-
         BiosTableHandle tableHandle = new BiosTableHandle(schemaName, tableName);
         BiosTableKind kind = null;
         List<AttributeConfig> attributes = null;
@@ -192,7 +235,7 @@ public class BiosClient
         if (schemaName.equals("signal")) {
             kind = BiosTableKind.SIGNAL;
             timestampColumnName = SIGNAL_TIMESTAMP_COLUMN;
-            for (SignalConfig signalConfig : tenantConfig.getSignals()) {
+            for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                 if (!tableName.equalsIgnoreCase(signalConfig.getName())) {
                     continue;
                 }
@@ -203,7 +246,7 @@ public class BiosClient
         else if (schemaName.equals("context")) {
             kind = BiosTableKind.CONTEXT;
             timestampColumnName = CONTEXT_TIMESTAMP_COLUMN;
-            for (ContextConfig contextConfig : tenantConfig.getContexts()) {
+            for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
                 if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
                     continue;
                 }
@@ -243,7 +286,7 @@ public class BiosClient
         return biosConfig;
     }
 
-    public Session getSession()
+    private Session getSession()
     {
         return session.get();
     }

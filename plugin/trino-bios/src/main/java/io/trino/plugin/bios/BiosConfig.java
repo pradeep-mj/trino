@@ -25,6 +25,7 @@ public class BiosConfig
     private String email;
     private String password;
     private Long defaultTimeRangeDeltaSeconds;
+    private Long metadataExpirationSeconds;
 
     @NotNull
     public URI getUrl()
@@ -75,6 +76,19 @@ public class BiosConfig
     public BiosConfig setDefaultTimeRangeDeltaSeconds(Long defaultTimeRangeDeltaSeconds)
     {
         this.defaultTimeRangeDeltaSeconds = defaultTimeRangeDeltaSeconds;
+        return this;
+    }
+
+    @NotNull
+    public Long getMetadataExpirationSeconds()
+    {
+        return metadataExpirationSeconds;
+    }
+
+    @Config("bios.metadataExpirationSeconds")
+    public BiosConfig setMetadataExpirationSeconds(Long metadataExpirationSeconds)
+    {
+        this.metadataExpirationSeconds = metadataExpirationSeconds;
         return this;
     }
 }

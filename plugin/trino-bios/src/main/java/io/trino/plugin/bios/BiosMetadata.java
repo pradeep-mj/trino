@@ -53,11 +53,13 @@ public class BiosMetadata
     private static final Logger logger = Logger.get(BiosMetadata.class);
 
     private final BiosClient biosClient;
+    private final ConnectorTableProperties connectorTableProperties;
 
     @Inject
     public BiosMetadata(BiosClient biosClient)
     {
         this.biosClient = requireNonNull(biosClient, "biosClient is null");
+        connectorTableProperties = new ConnectorTableProperties();
     }
 
     @Override
@@ -69,7 +71,7 @@ public class BiosMetadata
     @Override
     public BiosTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        // logger.debug("getTableHandle");
+        logger.debug("getTableHandle");
         if (!listSchemaNames(session).contains(tableName.getSchemaName())) {
             return null;
         }
@@ -92,6 +94,7 @@ public class BiosMetadata
     private ConnectorTableMetadata getTableMetadata(ConnectorSession session,
                                                     SchemaTableName schemaTableName)
     {
+        // logger.debug("getTableMetadata");
         if (!listSchemaNames(session).contains(schemaTableName.getSchemaName())) {
             return null;
         }
@@ -127,7 +130,7 @@ public class BiosMetadata
     @Override
     public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
-        // logger.debug("getColumnHandles");
+        logger.debug("getColumnHandles");
         BiosTableHandle biosTableHandle = (BiosTableHandle) tableHandle;
 
         BiosTable table = biosClient.getTable(biosTableHandle.getSchemaName(), biosTableHandle.getTableName());
@@ -177,7 +180,7 @@ public class BiosMetadata
     public ConnectorTableProperties getTableProperties(ConnectorSession session, ConnectorTableHandle table)
     {
         // logger.debug("getTableProperties");
-        return new ConnectorTableProperties();
+        return connectorTableProperties;
     }
 
     @Override
