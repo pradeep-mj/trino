@@ -118,6 +118,9 @@ public class BiosClient
                             return executeInternal(statement);
                         }
                     });
+        // Execute one query to initialize bios SDK metrics.
+        execute(new BiosStatement(BiosTableKind.SIGNAL, "_requests", null, null,
+                System.currentTimeMillis(), -60000L));
     }
 
     /**
