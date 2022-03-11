@@ -192,33 +192,40 @@ public class BiosClient
     public ISqlResponse execute(BiosStatement statement)
     {
         statement.setTimeRangeStart(floor(statement.getTimeRangeStart(),
-                biosConfig.getDataCacheSeconds() * 1000));
+                biosConfig.getDataAlignmentSeconds() * 1000));
 
         return dataCache.getUnchecked(statement);
     }
 
-    private long floor(long toBeFloored, long divisor)
+    private Long floor(Long toBeFloored, long divisor)
     {
+        if (toBeFloored == null) {
+            return null;
+        }
         return divisor * (long) (toBeFloored / divisor);
     }
 
     private ISqlResponse executeInternal(BiosStatement statement)
     {
         ISqlStatement isqlStatement;
+        var partialStatement = ISqlStatement.select();
+        if (statement.getAttributes() != null) {
+            partialStatement = ISqlStatement.select(statement.getAttributes());
+        }
         if (statement.getTableKind() == BiosTableKind.SIGNAL) {
-            isqlStatement = ISqlStatement.select(statement.getAttributes())
+            isqlStatement = partialStatement
                     .from(statement.getTableName())
                     .timeRange(statement.getTimeRangeStart(), statement.getTimeRangeDelta())
                     .build();
         }
         else {
             if (statement.getKeyValues() == null) {
-                isqlStatement = ISqlStatement.select(statement.getAttributes())
+                isqlStatement = partialStatement
                         .fromContext(statement.getTableName())
                         .build();
             }
             else {
-                isqlStatement = ISqlStatement.select(statement.getAttributes())
+                isqlStatement = partialStatement
                         .fromContext(statement.getTableName())
                         .where(keys().in(statement.getKeyValues()))
                         .build();

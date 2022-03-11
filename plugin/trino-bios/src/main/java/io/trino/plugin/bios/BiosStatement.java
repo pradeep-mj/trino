@@ -78,7 +78,7 @@ public final class BiosStatement
         return timeRangeStart;
     }
 
-    public void setTimeRangeStart(long timeRangeStart)
+    public void setTimeRangeStart(Long timeRangeStart)
     {
         this.timeRangeStart = timeRangeStart;
     }

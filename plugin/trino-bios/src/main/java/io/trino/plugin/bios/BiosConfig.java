@@ -27,6 +27,7 @@ public class BiosConfig
     private Long defaultTimeRangeDeltaSeconds;
     private Long metadataCacheSeconds;
     private Long dataCacheSeconds;
+    private Long dataAlignmentSeconds;
     private Long dataCacheSizeInRows;
 
     public URI getUrl()
@@ -69,7 +70,7 @@ public class BiosConfig
 
     public Long getDefaultTimeRangeDeltaSeconds()
     {
-        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 600L;
+        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 900L;
     }
 
     @Config("bios.defaultTimeRangeDeltaSeconds")
@@ -81,7 +82,7 @@ public class BiosConfig
 
     public Long getMetadataCacheSeconds()
     {
-        return metadataCacheSeconds != null ? metadataCacheSeconds : 600L;
+        return metadataCacheSeconds != null ? metadataCacheSeconds : 900L;
     }
 
     @Config("bios.metadataCacheSeconds")
@@ -93,13 +94,25 @@ public class BiosConfig
 
     public Long getDataCacheSeconds()
     {
-        return dataCacheSeconds != null ? dataCacheSeconds : 60L;
+        return dataCacheSeconds != null ? dataCacheSeconds : 900L;
     }
 
     @Config("bios.dataCacheSeconds")
     public BiosConfig setDataCacheSeconds(Long dataCacheSeconds)
     {
         this.dataCacheSeconds = dataCacheSeconds;
+        return this;
+    }
+
+    public Long getDataAlignmentSeconds()
+    {
+        return dataAlignmentSeconds != null ? dataAlignmentSeconds : 300L;
+    }
+
+    @Config("bios.dataAlignmentSeconds")
+    public BiosConfig setDataAlignmentSeconds(Long dataAlignmentSeconds)
+    {
+        this.dataAlignmentSeconds = dataAlignmentSeconds;
         return this;
     }
 
