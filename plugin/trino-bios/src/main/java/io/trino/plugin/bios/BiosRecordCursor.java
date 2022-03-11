@@ -189,8 +189,10 @@ public class BiosRecordCursor
                     currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asString());
         }
         else if (type.equals(VARBINARY)) {
-            return Slices.wrappedBuffer(
-                    currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asByteArray());
+            // TODO: Enable this after Bios Java SDK supports blob data types
+            // return Slices.wrappedBuffer(
+            //         currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asByteArray());
+            return Slices.EMPTY_SLICE;
         }
         else {
             checkArgument(false, "Expected field %s to be type VARCHAR or VARBINARY, but is %s",
