@@ -15,6 +15,7 @@ package io.trino.plugin.bios;
 
 public enum BiosTableKind
 {
+    CONTEXT,
     SIGNAL,
-    CONTEXT
+    RAW_SIGNAL
 }

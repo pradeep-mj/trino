@@ -88,7 +88,8 @@ public class BiosRecordCursor
                     .toArray(String[]::new);
             BiosStatement statement;
 
-            if (tableHandle.getKind() == BiosTableKind.SIGNAL) {
+            if ((tableHandle.getKind() == BiosTableKind.SIGNAL) ||
+                    (tableHandle.getKind() == BiosTableKind.RAW_SIGNAL)) {
                 // For signals, make a simple time-range query.
 
                 long start;
@@ -100,15 +101,9 @@ public class BiosRecordCursor
                 }
                 else {
                     start = System.currentTimeMillis();
-                    if (biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds() != null) {
-                        delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
-                    }
-                    else {
-                        // Use 1 hour if no default is configured.
-                        delta = -1000 * 60 * 60;
-                    }
+                    delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
                 }
-                statement = new BiosStatement(BiosTableKind.SIGNAL, tableHandle.getTableName(),
+                statement = new BiosStatement(tableHandle.getKind(), tableHandle.getTableName(),
                         attributes, null, start, delta);
             }
             else {
@@ -126,14 +121,14 @@ public class BiosRecordCursor
                         .map(r -> r.getAttribute(keyColumnName).asString())
                         .toArray(String[]::new);
 
-                statement = new BiosStatement(BiosTableKind.CONTEXT, tableHandle.getTableName(),
+                statement = new BiosStatement(tableHandle.getKind(), tableHandle.getTableName(),
                         null, keyValues, null, null);
             }
 
             ISqlResponse response = biosClient.execute(statement);
             List<Record> data = new ArrayList<>(response.getRecords());
             for (DataWindow window : response.getDataWindows()) {
-                logger.debug("BiosRecordCursor: %d records", window.getRecords().size());
+                logger.debug("     %d records", window.getRecords().size());
                 data.addAll(window.getRecords());
             }
             records = data.iterator();

@@ -62,6 +62,7 @@ public class BiosClient
 {
     public static final String SIGNAL_TIMESTAMP_COLUMN = "__eventTimestamp";
     public static final String CONTEXT_TIMESTAMP_COLUMN = "__upsertTimestamp";
+    public static final String RAW_SIGNAL_TABLE_NAME_SUFFIX = "_raw";
 
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
@@ -119,7 +120,7 @@ public class BiosClient
                         }
                     });
         // Execute one query to initialize bios SDK metrics.
-        execute(new BiosStatement(BiosTableKind.SIGNAL, "_requests", null, null,
+        execute(new BiosStatement(BiosTableKind.RAW_SIGNAL, addRawSuffix("_requests"), null, null,
                 System.currentTimeMillis(), -60000L));
     }
 
@@ -179,13 +180,14 @@ public class BiosClient
         return () -> {
             TenantConfig tenantConfig = null;
             try {
-                logger.debug("--- bios network request: getTenant");
+                logger.debug("----------> bios network request: getTenant");
                 tenantConfig = client.getSession().getTenant(true, true);
             }
             catch (BiosClientException e) {
                 client.handleException(e);
             }
-            logger.debug("    bios network request: getTenant %s returned %d signals, %d contexts",
+            logger.debug("<---------- bios network response: getTenant %s returned %d signals, %d "
+                            + "contexts",
                     tenantConfig.getName(), tenantConfig.getSignals().size(),
                     tenantConfig.getContexts().size());
             return tenantConfig;
@@ -215,34 +217,35 @@ public class BiosClient
         if (statement.getAttributes() != null) {
             partialStatement = ISqlStatement.select(statement.getAttributes());
         }
-        if (statement.getTableKind() == BiosTableKind.SIGNAL) {
+        if ((statement.getTableKind() == BiosTableKind.SIGNAL) ||
+                (statement.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
             isqlStatement = partialStatement
-                    .from(statement.getTableName())
+                    .from(statement.getUnderlyingTableName())
                     .timeRange(statement.getTimeRangeStart(), statement.getTimeRangeDelta())
                     .build();
         }
         else {
             if (statement.getKeyValues() == null) {
                 isqlStatement = partialStatement
-                        .fromContext(statement.getTableName())
+                        .fromContext(statement.getUnderlyingTableName())
                         .build();
             }
             else {
                 isqlStatement = partialStatement
-                        .fromContext(statement.getTableName())
+                        .fromContext(statement.getUnderlyingTableName())
                         .where(keys().in(statement.getKeyValues()))
                         .build();
             }
         }
 
-        logger.debug("--- bios network request: statement %s", statement);
+        logger.debug("----------> bios network request: statement %s", statement);
         ISqlResponse response = execute(isqlStatement);
         long firstWindowRecords = 0;
         if (response.getDataWindows().size() > 0) {
             firstWindowRecords = response.getDataWindows().get(0).getRecords().size();
         }
-        logger.debug("   bios network request: statement returned %d records, %d windows with %d "
-                        + "records in first window",
+        logger.debug("<---------- bios network response: statement returned %d records, %d windows "
+                        + "with %d records in first window",
                 response.getRecords().size(), response.getDataWindows().size(), firstWindowRecords);
 
         return response;
@@ -262,7 +265,21 @@ public class BiosClient
 
     public List<String> getSchemaNames()
     {
-        return ImmutableList.of("context", "signal");
+        return ImmutableList.of("context", "signal", "raw_signal");
+    }
+
+    public static String addRawSuffix(String tableName)
+    {
+        return tableName + RAW_SIGNAL_TABLE_NAME_SUFFIX;
+    }
+
+    public static String removeRawSuffix(String tableName)
+    {
+        if (!tableName.endsWith(RAW_SIGNAL_TABLE_NAME_SUFFIX)) {
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, "bi(OS) got invalid raw signal table"
+                    + " name: " + tableName + "; expected it to end with: " + RAW_SIGNAL_TABLE_NAME_SUFFIX);
+        }
+        return tableName.substring(0, tableName.length() - RAW_SIGNAL_TABLE_NAME_SUFFIX.length());
     }
 
     public Set<String> getTableNames(String schemaName)
@@ -272,15 +289,22 @@ public class BiosClient
 
         List<String> tableNames = new ArrayList<>();
 
-        if (schemaName.equals("signal")) {
-            for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
-                tableNames.add(signalConfig.getName());
-            }
-        }
-        else if (schemaName.equals("context")) {
-            for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
-                tableNames.add(contextConfig.getName());
-            }
+        switch (schemaName) {
+            case "signal":
+                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
+                    tableNames.add(signalConfig.getName());
+                }
+                break;
+            case "raw_signal":
+                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
+                    tableNames.add(addRawSuffix(signalConfig.getName()));
+                }
+                break;
+            case "context":
+                for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
+                    tableNames.add(contextConfig.getName());
+                }
+                break;
         }
         logger.debug("getTableNames: %s", tableNames.toString());
         return ImmutableSet.copyOf(tableNames);
@@ -300,27 +324,38 @@ public class BiosClient
         String defaultValue = null;
         String timestampColumnName = null;
 
-        if (schemaName.equals("signal")) {
-            kind = BiosTableKind.SIGNAL;
-            timestampColumnName = SIGNAL_TIMESTAMP_COLUMN;
-            for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
-                if (!tableName.equalsIgnoreCase(signalConfig.getName())) {
-                    continue;
+        switch (schemaName) {
+            case "signal":
+            case "raw_signal":
+                final String underlyingTableName;
+                if (schemaName.equals("signal")) {
+                    kind = BiosTableKind.SIGNAL;
+                    underlyingTableName = tableName;
                 }
-                attributes = signalConfig.getAttributes();
-                break;
-            }
-        }
-        else if (schemaName.equals("context")) {
-            kind = BiosTableKind.CONTEXT;
-            timestampColumnName = CONTEXT_TIMESTAMP_COLUMN;
-            for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
-                if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
-                    continue;
+                else {
+                    kind = BiosTableKind.RAW_SIGNAL;
+                    underlyingTableName = removeRawSuffix(tableName);
                 }
-                attributes = contextConfig.getAttributes();
+                timestampColumnName = SIGNAL_TIMESTAMP_COLUMN;
+                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
+                    if (!underlyingTableName.equalsIgnoreCase(signalConfig.getName())) {
+                        continue;
+                    }
+                    attributes = signalConfig.getAttributes();
+                    break;
+                }
                 break;
-            }
+            case "context":
+                kind = BiosTableKind.CONTEXT;
+                timestampColumnName = CONTEXT_TIMESTAMP_COLUMN;
+                for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
+                    if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
+                        continue;
+                    }
+                    attributes = contextConfig.getAttributes();
+                    break;
+                }
+                break;
         }
         if (attributes == null) {
             return null;

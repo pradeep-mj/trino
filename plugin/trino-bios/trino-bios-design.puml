@@ -150,8 +150,9 @@ class BiosSplitManager implements ConnectorSplitManager {
 }
 
 enum BiosTableKind {
-    SIGNAL
     CONTEXT
+    SIGNAL
+    RAW_SIGNAL
 }
 
 class BiosTable << (P, orange) >> {

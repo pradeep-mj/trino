@@ -15,12 +15,14 @@ package io.trino.plugin.bios;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.SchemaTableName;
 
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
 public final class BiosTableHandle
@@ -80,11 +82,18 @@ public final class BiosTableHandle
 
     public BiosTableKind getKind()
     {
-        if (schemaName.equals("signal")) {
+        if (schemaName.equals("context")) {
+            return BiosTableKind.CONTEXT;
+        }
+        else if (schemaName.equals("signal")) {
             return BiosTableKind.SIGNAL;
         }
+        else if (schemaName.equals("raw_signal")) {
+            return BiosTableKind.RAW_SIGNAL;
+        }
         else {
-            return BiosTableKind.CONTEXT;
+            throw new TrinoException(GENERIC_INTERNAL_ERROR,
+                "bi(OS) was given invalid schema name: " + schemaName);
         }
     }
 

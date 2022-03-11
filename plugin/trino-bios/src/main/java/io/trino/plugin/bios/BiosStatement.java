@@ -60,6 +60,16 @@ public final class BiosStatement
         return tableName;
     }
 
+    public String getUnderlyingTableName()
+    {
+        if (tableKind == BiosTableKind.RAW_SIGNAL) {
+            return BiosClient.removeRawSuffix(tableName);
+        }
+        else {
+            return tableName;
+        }
+    }
+
     @JsonProperty
     public String[] getAttributes()
     {
