@@ -25,12 +25,13 @@ public class BiosConfig
     private String email;
     private String password;
     private Long defaultTimeRangeDeltaSeconds;
-    private Long metadataExpirationSeconds;
+    private Long metadataCacheSeconds;
+    private Long dataCacheSeconds;
+    private Long dataCacheSizeInRows;
 
-    @NotNull
     public URI getUrl()
     {
-        return url;
+        return url != null ? url : URI.create("https://bios.isima.io");
     }
 
     @Config("bios.url")
@@ -66,10 +67,9 @@ public class BiosConfig
         return this;
     }
 
-    @NotNull
     public Long getDefaultTimeRangeDeltaSeconds()
     {
-        return defaultTimeRangeDeltaSeconds;
+        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 600L;
     }
 
     @Config("bios.defaultTimeRangeDeltaSeconds")
@@ -79,16 +79,39 @@ public class BiosConfig
         return this;
     }
 
-    @NotNull
-    public Long getMetadataExpirationSeconds()
+    public Long getMetadataCacheSeconds()
     {
-        return metadataExpirationSeconds;
+        return metadataCacheSeconds != null ? metadataCacheSeconds : 600L;
     }
 
-    @Config("bios.metadataExpirationSeconds")
-    public BiosConfig setMetadataExpirationSeconds(Long metadataExpirationSeconds)
+    @Config("bios.metadataCacheSeconds")
+    public BiosConfig setMetadataCacheSeconds(Long metadataCacheSeconds)
     {
-        this.metadataExpirationSeconds = metadataExpirationSeconds;
+        this.metadataCacheSeconds = metadataCacheSeconds;
+        return this;
+    }
+
+    public Long getDataCacheSeconds()
+    {
+        return dataCacheSeconds != null ? dataCacheSeconds : 60L;
+    }
+
+    @Config("bios.dataCacheSeconds")
+    public BiosConfig setDataCacheSeconds(Long dataCacheSeconds)
+    {
+        this.dataCacheSeconds = dataCacheSeconds;
+        return this;
+    }
+
+    public Long getDataCacheSizeInRows()
+    {
+        return dataCacheSizeInRows != null ? dataCacheSizeInRows : 1000000L;
+    }
+
+    @Config("bios.dataCacheSizeInRows")
+    public BiosConfig setDataCacheSizeInRows(Long dataCacheSizeInRows)
+    {
+        this.dataCacheSizeInRows = dataCacheSizeInRows;
         return this;
     }
 }

@@ -27,7 +27,8 @@ public final class BiosStatement
     private final BiosTableKind tableKind;
     private final String tableName;
     private final String[] attributes;
-    private final Long timeRangeStart;
+    private final String[] keyValues;
+    private Long timeRangeStart;
     private final Long timeRangeDelta;
 
     @JsonCreator
@@ -35,12 +36,14 @@ public final class BiosStatement
             @JsonProperty("tableKind") BiosTableKind tableKind,
             @JsonProperty("tableName") String tableName,
             @JsonProperty("attributes") String[] attributes,
+            @JsonProperty("keyValues") String[] keyValues,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta)
     {
         this.tableKind = tableKind;
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.attributes = attributes;
+        this.keyValues = keyValues;
         this.timeRangeStart = timeRangeStart;
         this.timeRangeDelta = timeRangeDelta;
     }
@@ -64,9 +67,20 @@ public final class BiosStatement
     }
 
     @JsonProperty
+    public String[] getKeyValues()
+    {
+        return keyValues;
+    }
+
+    @JsonProperty
     public Long getTimeRangeStart()
     {
         return timeRangeStart;
+    }
+
+    public void setTimeRangeStart(long timeRangeStart)
+    {
+        this.timeRangeStart = timeRangeStart;
     }
 
     @JsonProperty
@@ -78,8 +92,8 @@ public final class BiosStatement
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableKind, tableName, Arrays.hashCode(attributes), timeRangeStart,
-                timeRangeDelta);
+        return Objects.hash(tableKind, tableName, Arrays.hashCode(attributes),
+                Arrays.hashCode(keyValues), timeRangeStart, timeRangeDelta);
     }
 
     @Override
@@ -96,6 +110,7 @@ public final class BiosStatement
         return Objects.equals(this.tableKind, other.tableKind) &&
                 Objects.equals(this.tableName, other.tableName) &&
                 Arrays.equals(this.attributes, other.attributes) &&
+                Arrays.equals(this.keyValues, other.keyValues) &&
                 Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
                 Objects.equals(this.timeRangeDelta, other.timeRangeDelta);
     }
@@ -107,6 +122,7 @@ public final class BiosStatement
                 .add("tableKind", tableKind)
                 .add("tableName", tableName)
                 .add("attributes", Arrays.toString(attributes))
+                .add("keyValues", Arrays.toString(keyValues))
                 .add("timeRangeStart", timeRangeStart)
                 .add("timeRangeDelta", timeRangeDelta)
                 .omitNullValues()

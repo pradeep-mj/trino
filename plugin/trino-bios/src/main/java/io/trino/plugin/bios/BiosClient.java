@@ -15,6 +15,9 @@ package io.trino.plugin.bios;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.Weigher;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
@@ -29,6 +32,8 @@ import io.isima.bios.models.isql.ISqlStatement;
 import io.isima.bios.sdk.Bios;
 import io.isima.bios.sdk.Session;
 import io.isima.bios.sdk.exceptions.BiosClientException;
+import io.trino.collect.cache.NonEvictableLoadingCache;
+import io.trino.collect.cache.SafeCaches;
 import io.trino.spi.TrinoException;
 import io.trino.spi.type.Type;
 
@@ -42,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static io.isima.bios.models.isql.WhereClause.keys;
 import static io.isima.bios.sdk.errors.BiosClientError.SESSION_EXPIRED;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -71,6 +77,7 @@ public class BiosClient
     private final BiosConfig biosConfig;
     private Supplier<Session> session;
     private Supplier<TenantConfig> tenantConfig;
+    private NonEvictableLoadingCache<BiosStatement, ISqlResponse> dataCache;
 
     @Inject
     public BiosClient(BiosConfig config, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
@@ -86,8 +93,31 @@ public class BiosClient
 
         session = Suppliers.memoize(sessionSupplier(config));
         tenantConfig = Suppliers.memoizeWithExpiration(tenantConfigSupplier(this),
-                config.getMetadataExpirationSeconds(), TimeUnit.SECONDS);
+                config.getMetadataCacheSeconds(), TimeUnit.SECONDS);
         tenantConfig.get();
+
+        dataCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
+                .maximumWeight(config.getDataCacheSizeInRows())
+                .weigher(new Weigher<BiosStatement, ISqlResponse>() {
+                    @Override
+                    public int weigh(BiosStatement statement, ISqlResponse response)
+                    {
+                        int numRows = 0;
+                        numRows += response.getRecords().size();
+                        for (var window : response.getDataWindows()) {
+                            numRows += window.getRecords().size();
+                        }
+                        return numRows;
+                    }
+                })
+                .expireAfterWrite(config.getDataCacheSeconds(), TimeUnit.SECONDS),
+                    new CacheLoader<BiosStatement, ISqlResponse>() {
+                        @Override
+                        public ISqlResponse load(final BiosStatement statement)
+                        {
+                            return executeInternal(statement);
+                        }
+                    });
     }
 
     /**
@@ -161,6 +191,19 @@ public class BiosClient
 
     public ISqlResponse execute(BiosStatement statement)
     {
+        statement.setTimeRangeStart(floor(statement.getTimeRangeStart(),
+                biosConfig.getDataCacheSeconds() * 1000));
+
+        return dataCache.getUnchecked(statement);
+    }
+
+    private long floor(long toBeFloored, long divisor)
+    {
+        return divisor * (long) (toBeFloored / divisor);
+    }
+
+    private ISqlResponse executeInternal(BiosStatement statement)
+    {
         ISqlStatement isqlStatement;
         if (statement.getTableKind() == BiosTableKind.SIGNAL) {
             isqlStatement = ISqlStatement.select(statement.getAttributes())
@@ -169,26 +212,41 @@ public class BiosClient
                     .build();
         }
         else {
-            isqlStatement = ISqlStatement.select(statement.getAttributes())
-                    .fromContext(statement.getTableName())
-                    .build();
+            if (statement.getKeyValues() == null) {
+                isqlStatement = ISqlStatement.select(statement.getAttributes())
+                        .fromContext(statement.getTableName())
+                        .build();
+            }
+            else {
+                isqlStatement = ISqlStatement.select(statement.getAttributes())
+                        .fromContext(statement.getTableName())
+                        .where(keys().in(statement.getKeyValues()))
+                        .build();
+            }
         }
-        return execute(isqlStatement);
+
+        logger.debug("--- bios network request: statement %s", statement);
+        ISqlResponse response = execute(isqlStatement);
+        long firstWindowRecords = 0;
+        if (response.getDataWindows().size() > 0) {
+            firstWindowRecords = response.getDataWindows().get(0).getRecords().size();
+        }
+        logger.debug("   bios network request: statement returned %d records, %d windows with %d "
+                        + "records in first window",
+                response.getRecords().size(), response.getDataWindows().size(), firstWindowRecords);
+
+        return response;
     }
 
-    public ISqlResponse execute(ISqlStatement statement)
+    private ISqlResponse execute(ISqlStatement statement)
     {
         ISqlResponse response = null;
         try {
-            logger.debug("--- bios network request: statement %s", statement);
             response = session.get().execute(statement);
         }
         catch (BiosClientException e) {
             handleException(e);
         }
-        logger.debug("   bios network request: statement returned %d windows, %d records",
-                response.getDataWindows().size(),
-                response.getRecords().size());
         return response;
     }
 

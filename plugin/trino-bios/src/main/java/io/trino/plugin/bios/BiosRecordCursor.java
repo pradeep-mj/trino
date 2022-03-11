@@ -19,7 +19,6 @@ import io.airlift.slice.Slices;
 import io.isima.bios.models.DataWindow;
 import io.isima.bios.models.Record;
 import io.isima.bios.models.isql.ISqlResponse;
-import io.isima.bios.models.isql.ISqlStatement;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.type.Type;
 
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static io.isima.bios.models.isql.WhereClause.keys;
 import static io.trino.plugin.bios.BiosClient.CONTEXT_TIMESTAMP_COLUMN;
 import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -82,13 +80,13 @@ public class BiosRecordCursor
     public boolean advanceNextPosition()
     {
         if (records == null) {
-            logger.debug("bios starting query on table %s ...", tableHandle.getTableName());
+            logger.debug("bios got query on table %s", tableHandle.getTableName());
             String[] attributes = columnHandles.stream()
                     .map(BiosColumnHandle::getColumnName)
                     .filter(a -> !Objects.equals(a, SIGNAL_TIMESTAMP_COLUMN))
                     .filter(a -> !Objects.equals(a, CONTEXT_TIMESTAMP_COLUMN))
                     .toArray(String[]::new);
-            ISqlStatement statement;
+            BiosStatement statement;
 
             if (tableHandle.getKind() == BiosTableKind.SIGNAL) {
                 // For signals, make a simple time-range query.
@@ -110,10 +108,8 @@ public class BiosRecordCursor
                         delta = -1000 * 60 * 60;
                     }
                 }
-                statement = ISqlStatement.select(attributes)
-                        .from(tableHandle.getTableName())
-                        .timeRange(start, delta)
-                        .build();
+                statement = new BiosStatement(BiosTableKind.SIGNAL, tableHandle.getTableName(),
+                        attributes, null, start, delta);
             }
             else {
                 // Contexts only support listing the primary key attribute directly.
@@ -123,18 +119,15 @@ public class BiosRecordCursor
                 BiosTable table = biosClient.getTable(tableHandle.getSchemaName(),
                         tableHandle.getTableName());
                 String keyColumnName = table.getColumns().get(0).getColumnName();
-                ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
-                        .fromContext(tableHandle.getTableName())
-                        .build();
+                BiosStatement preliminaryStatement = new BiosStatement(BiosTableKind.CONTEXT,
+                        tableHandle.getTableName(), new String[]{keyColumnName}, null, null, null);
                 ISqlResponse preliminaryResponse = biosClient.execute(preliminaryStatement);
                 String[] keyValues = preliminaryResponse.getRecords().stream()
                         .map(r -> r.getAttribute(keyColumnName).asString())
                         .toArray(String[]::new);
 
-                statement = ISqlStatement.select()
-                        .fromContext(tableHandle.getTableName())
-                        .where(keys().in(keyValues))
-                        .build();
+                statement = new BiosStatement(BiosTableKind.CONTEXT, tableHandle.getTableName(),
+                        null, keyValues, null, null);
             }
 
             ISqlResponse response = biosClient.execute(statement);
