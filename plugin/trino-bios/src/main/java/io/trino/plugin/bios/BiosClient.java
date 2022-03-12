@@ -120,8 +120,8 @@ public class BiosClient
                         }
                     });
         // Execute one query to initialize bios SDK metrics.
-        execute(new BiosQuery("raw_signal", addRawSuffix("_requests"), null, null,
-                System.currentTimeMillis(), -60000L));
+        execute(new BiosQuery("raw_signal", addRawSuffix("_requests"),
+                System.currentTimeMillis(), -60000L, null));
     }
 
     /**
@@ -194,14 +194,6 @@ public class BiosClient
         };
     }
 
-    public ISqlResponse execute(BiosQuery query)
-    {
-        query.setTimeRangeStart(floor(query.getTimeRangeStart(),
-                biosConfig.getDataAlignmentSeconds() * 1000));
-
-        return dataCache.getUnchecked(query);
-    }
-
     private Long floor(Long toBeFloored, long divisor)
     {
         if (toBeFloored == null) {
@@ -210,32 +202,49 @@ public class BiosClient
         return divisor * (long) (toBeFloored / divisor);
     }
 
+    public ISqlResponse execute(BiosQuery query)
+    {
+        query.setTimeRangeStart(floor(query.getTimeRangeStart(),
+                biosConfig.getDataAlignmentSeconds() * 1000));
+
+        return dataCache.getUnchecked(query);
+    }
+
     private ISqlResponse executeInternal(BiosQuery query)
     {
         ISqlStatement isqlStatement;
-        var partialStatement = ISqlStatement.select();
-        if (query.getAttributes() != null) {
-            partialStatement = ISqlStatement.select(query.getAttributes());
+
+        if (query.getTableKind() == BiosTableKind.CONTEXT) {
+            // Contexts only support listing the primary key attribute directly.
+            // First get all the primary key values, and then issue a second query to get
+            // all the attributes for each of those keys.
+
+            var columns = getColumnHandles(query.getSchemaName(), query.getTableName());
+            String keyColumnName = columns.get(0).getColumnName();
+
+            ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
+                    .fromContext(query.getUnderlyingTableName())
+                    .build();
+
+            ISqlResponse preliminaryResponse = execute(preliminaryStatement);
+            String[] keyValues = preliminaryResponse.getRecords().stream()
+                    .map(r -> r.getAttribute(keyColumnName).asString())
+                    .toArray(String[]::new);
+
+            isqlStatement = ISqlStatement.select()
+                    .fromContext(query.getUnderlyingTableName())
+                    .where(keys().in((java.lang.Object) keyValues))
+                    .build();
         }
-        if ((query.getTableKind() == BiosTableKind.SIGNAL) ||
-                (query.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
+        else {
+            var partialStatement = ISqlStatement.select();
+            if (query.getAttributes() != null) {
+                partialStatement = ISqlStatement.select(query.getAttributes());
+            }
             isqlStatement = partialStatement
                     .from(query.getUnderlyingTableName())
                     .timeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
                     .build();
-        }
-        else {
-            if (query.getKeyValues() == null) {
-                isqlStatement = partialStatement
-                        .fromContext(query.getUnderlyingTableName())
-                        .build();
-            }
-            else {
-                isqlStatement = partialStatement
-                        .fromContext(query.getUnderlyingTableName())
-                        .where(keys().in((java.lang.Object) query.getKeyValues()))
-                        .build();
-            }
         }
 
         logger.debug("----------> bios network request: statement %s", query);

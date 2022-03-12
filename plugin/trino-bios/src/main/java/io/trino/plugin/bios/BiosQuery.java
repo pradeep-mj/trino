@@ -25,20 +25,17 @@ public final class BiosQuery
         extends BiosTableHandle
 {
     private final String[] attributes;
-    private final String[] keyValues;
 
     @JsonCreator
     public BiosQuery(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
-            @JsonProperty("attributes") String[] attributes,
-            @JsonProperty("keyValues") String[] keyValues,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
-            @JsonProperty("timeRangeDelta") Long timeRangeDelta)
+            @JsonProperty("timeRangeDelta") Long timeRangeDelta,
+            @JsonProperty("attributes") String[] attributes)
     {
         super(schemaName, tableName, timeRangeStart, timeRangeDelta);
         this.attributes = attributes;
-        this.keyValues = keyValues;
     }
 
     public String getUnderlyingTableName()
@@ -57,17 +54,10 @@ public final class BiosQuery
         return attributes;
     }
 
-    @JsonProperty
-    public String[] getKeyValues()
-    {
-        return keyValues;
-    }
-
     @Override
     public int hashCode()
     {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(attributes),
-                Arrays.hashCode(keyValues));
+        return Objects.hash(super.hashCode(), Arrays.hashCode(attributes));
     }
 
     @Override
@@ -84,8 +74,7 @@ public final class BiosQuery
         }
 
         BiosQuery other = (BiosQuery) obj;
-        return Arrays.equals(this.attributes, other.attributes) &&
-                Arrays.equals(this.keyValues, other.keyValues);
+        return Arrays.equals(this.attributes, other.attributes);
     }
 
     @Override
@@ -94,7 +83,6 @@ public final class BiosQuery
         return toStringHelper(this)
                 .add("super", super.toString())
                 .add("attributes", Arrays.toString(attributes))
-                .add("keyValues", Arrays.toString(keyValues))
                 .omitNullValues()
                 .toString();
     }

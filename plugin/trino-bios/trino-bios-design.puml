@@ -194,7 +194,6 @@ class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
 class BiosQuery << (J, orangeRed) >> {
     + Cons (...)
     - String[] attributes
-    - String[] keyValues
 }
 
 BiosTableHandle <|- BiosQuery

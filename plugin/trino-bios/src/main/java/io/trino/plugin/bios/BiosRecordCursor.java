@@ -82,6 +82,7 @@ public class BiosRecordCursor
     {
         if (records == null) {
             logger.debug("bios got query on table %s", tableHandle.getTableName());
+
             String[] attributes = columnHandles.stream()
                     .map(BiosColumnHandle::getColumnName)
                     .filter(a -> !Objects.equals(a, SIGNAL_TIMESTAMP_COLUMN))
@@ -89,14 +90,13 @@ public class BiosRecordCursor
                     .filter(a -> !Objects.equals(a, SIGNAL_TIME_EPOCH_MS_COLUMN))
                     .filter(a -> !Objects.equals(a, CONTEXT_TIME_EPOCH_MS_COLUMN))
                     .toArray(String[]::new);
-            BiosQuery query;
 
+            Long start = null;
+            Long delta = null;
             if ((tableHandle.getTableKind() == BiosTableKind.SIGNAL) ||
                     (tableHandle.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
                 // For signals, make a simple time-range query.
 
-                long start;
-                long delta;
                 if (tableHandle.getTimeRangeStart() != null) {
                     start = tableHandle.getTimeRangeStart();
                     delta = tableHandle.getTimeRangeDelta();
@@ -106,27 +106,10 @@ public class BiosRecordCursor
                     start = System.currentTimeMillis();
                     delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
                 }
-                query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                        attributes, null, start, delta);
             }
-            else {
-                // Contexts only support listing the primary key attribute directly.
-                // First get all the primary key values, and then issue a second query to get
-                // all the attributes for each of those keys.
 
-                var columns = biosClient.getColumnHandles(tableHandle.getSchemaName(),
-                        tableHandle.getTableName());
-                String keyColumnName = columns.get(0).getColumnName();
-                BiosQuery preliminaryStatement = new BiosQuery(tableHandle.getSchemaName(),
-                        tableHandle.getTableName(), new String[]{keyColumnName}, null, null, null);
-                ISqlResponse preliminaryResponse = biosClient.execute(preliminaryStatement);
-                String[] keyValues = preliminaryResponse.getRecords().stream()
-                        .map(r -> r.getAttribute(keyColumnName).asString())
-                        .toArray(String[]::new);
-
-                query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                        null, keyValues, null, null);
-            }
+            BiosQuery query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
+                    start, delta, attributes);
 
             ISqlResponse response = biosClient.execute(query);
             List<Record> data = new ArrayList<>(response.getRecords());
