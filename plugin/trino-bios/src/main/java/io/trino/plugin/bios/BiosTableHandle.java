@@ -25,13 +25,13 @@ import static com.google.common.base.MoreObjects.toStringHelper;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
-public final class BiosTableHandle
+public class BiosTableHandle
         implements ConnectorTableHandle
 {
-    private final String schemaName;
-    private final String tableName;
-    private final Long timeRangeStart;
-    private final Long timeRangeDelta;
+    protected final String schemaName;
+    protected final String tableName;
+    protected Long timeRangeStart;
+    protected final Long timeRangeDelta;
 
     @JsonCreator
     public BiosTableHandle(
@@ -68,6 +68,11 @@ public final class BiosTableHandle
         return timeRangeStart;
     }
 
+    public void setTimeRangeStart(Long timeRangeStart)
+    {
+        this.timeRangeStart = timeRangeStart;
+    }
+
     @JsonProperty
     public Long getTimeRangeDelta()
     {
@@ -80,7 +85,7 @@ public final class BiosTableHandle
         return tableName;
     }
 
-    public BiosTableKind getKind()
+    public BiosTableKind getTableKind()
     {
         if (schemaName.equals("context")) {
             return BiosTableKind.CONTEXT;

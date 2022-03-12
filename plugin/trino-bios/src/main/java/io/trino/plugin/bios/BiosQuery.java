@@ -20,49 +20,30 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static java.util.Objects.requireNonNull;
 
-public final class BiosStatement
+public final class BiosQuery
+        extends BiosTableHandle
 {
-    private final BiosTableKind tableKind;
-    private final String tableName;
     private final String[] attributes;
     private final String[] keyValues;
-    private Long timeRangeStart;
-    private final Long timeRangeDelta;
 
     @JsonCreator
-    public BiosStatement(
-            @JsonProperty("tableKind") BiosTableKind tableKind,
+    public BiosQuery(
+            @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
             @JsonProperty("attributes") String[] attributes,
             @JsonProperty("keyValues") String[] keyValues,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta)
     {
-        this.tableKind = tableKind;
-        this.tableName = requireNonNull(tableName, "tableName is null");
+        super(schemaName, tableName, timeRangeStart, timeRangeDelta);
         this.attributes = attributes;
         this.keyValues = keyValues;
-        this.timeRangeStart = timeRangeStart;
-        this.timeRangeDelta = timeRangeDelta;
-    }
-
-    @JsonProperty
-    public BiosTableKind getTableKind()
-    {
-        return tableKind;
-    }
-
-    @JsonProperty
-    public String getTableName()
-    {
-        return tableName;
     }
 
     public String getUnderlyingTableName()
     {
-        if (tableKind == BiosTableKind.RAW_SIGNAL) {
+        if (getTableKind() == BiosTableKind.RAW_SIGNAL) {
             return BiosClient.removeRawSuffix(tableName);
         }
         else {
@@ -82,28 +63,11 @@ public final class BiosStatement
         return keyValues;
     }
 
-    @JsonProperty
-    public Long getTimeRangeStart()
-    {
-        return timeRangeStart;
-    }
-
-    public void setTimeRangeStart(Long timeRangeStart)
-    {
-        this.timeRangeStart = timeRangeStart;
-    }
-
-    @JsonProperty
-    public Long getTimeRangeDelta()
-    {
-        return timeRangeDelta;
-    }
-
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableKind, tableName, Arrays.hashCode(attributes),
-                Arrays.hashCode(keyValues), timeRangeStart, timeRangeDelta);
+        return Objects.hash(super.hashCode(), Arrays.hashCode(attributes),
+                Arrays.hashCode(keyValues));
     }
 
     @Override
@@ -115,26 +79,22 @@ public final class BiosStatement
         if ((obj == null) || (getClass() != obj.getClass())) {
             return false;
         }
+        if (!super.equals(obj)) {
+            return false;
+        }
 
-        BiosStatement other = (BiosStatement) obj;
-        return Objects.equals(this.tableKind, other.tableKind) &&
-                Objects.equals(this.tableName, other.tableName) &&
-                Arrays.equals(this.attributes, other.attributes) &&
-                Arrays.equals(this.keyValues, other.keyValues) &&
-                Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
-                Objects.equals(this.timeRangeDelta, other.timeRangeDelta);
+        BiosQuery other = (BiosQuery) obj;
+        return Arrays.equals(this.attributes, other.attributes) &&
+                Arrays.equals(this.keyValues, other.keyValues);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("tableKind", tableKind)
-                .add("tableName", tableName)
+                .add("super", super.toString())
                 .add("attributes", Arrays.toString(attributes))
                 .add("keyValues", Arrays.toString(keyValues))
-                .add("timeRangeStart", timeRangeStart)
-                .add("timeRangeDelta", timeRangeDelta)
                 .omitNullValues()
                 .toString();
     }

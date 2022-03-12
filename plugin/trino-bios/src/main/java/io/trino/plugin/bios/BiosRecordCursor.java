@@ -89,10 +89,10 @@ public class BiosRecordCursor
                     .filter(a -> !Objects.equals(a, SIGNAL_TIME_EPOCH_MS_COLUMN))
                     .filter(a -> !Objects.equals(a, CONTEXT_TIME_EPOCH_MS_COLUMN))
                     .toArray(String[]::new);
-            BiosStatement statement;
+            BiosQuery statement;
 
-            if ((tableHandle.getKind() == BiosTableKind.SIGNAL) ||
-                    (tableHandle.getKind() == BiosTableKind.RAW_SIGNAL)) {
+            if ((tableHandle.getTableKind() == BiosTableKind.SIGNAL) ||
+                    (tableHandle.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
                 // For signals, make a simple time-range query.
 
                 long start;
@@ -106,7 +106,7 @@ public class BiosRecordCursor
                     start = System.currentTimeMillis();
                     delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
                 }
-                statement = new BiosStatement(tableHandle.getKind(), tableHandle.getTableName(),
+                statement = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
                         attributes, null, start, delta);
             }
             else {
@@ -117,14 +117,14 @@ public class BiosRecordCursor
                 var columns = biosClient.getColumnHandles(tableHandle.getSchemaName(),
                         tableHandle.getTableName());
                 String keyColumnName = columns.get(0).getColumnName();
-                BiosStatement preliminaryStatement = new BiosStatement(BiosTableKind.CONTEXT,
+                BiosQuery preliminaryStatement = new BiosQuery(tableHandle.getSchemaName(),
                         tableHandle.getTableName(), new String[]{keyColumnName}, null, null, null);
                 ISqlResponse preliminaryResponse = biosClient.execute(preliminaryStatement);
                 String[] keyValues = preliminaryResponse.getRecords().stream()
                         .map(r -> r.getAttribute(keyColumnName).asString())
                         .toArray(String[]::new);
 
-                statement = new BiosStatement(tableHandle.getKind(), tableHandle.getTableName(),
+                statement = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
                         null, keyValues, null, null);
             }
 

@@ -158,17 +158,6 @@ class BiosConfig << (P, orange) >> {
     + Long dataCacheSizeInRows;
 }
 
-interface ConnectorTableHandle <<Trino>>
-
-class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
-    + Cons (...)
-    - String schemaName
-    - String tableName
-    - Long timeRangeStart
-    - Long timeRangeDelta
-    + toSchemaTableName ()
-}
-
 interface ColumnHandle <<Trino>> {
     + hashCode ()
     + equals (Object)
@@ -190,14 +179,24 @@ enum BiosTableKind {
     RAW_SIGNAL
 }
 
-class BiosStatement << (J, orangeRed) >> {
+interface ConnectorTableHandle <<Trino>>
+
+class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
     + Cons (...)
-    - String tableKind
+    - String schemaName
     - String tableName
-    - String[] attributes
     - Long timeRangeStart
     - Long timeRangeDelta
+    + toSchemaTableName ()
 }
+
+class BiosQuery << (J, orangeRed) >> {
+    + Cons (...)
+    - String[] attributes
+    - String[] keyValues
+}
+
+BiosTableHandle <|- BiosQuery
 
 
 entity Process_Initialization <<Trino>>
@@ -210,10 +209,14 @@ BiosClient ..> BiosConfig
 entity Show_Schemas <<Trino>>
 Show_Schemas --> Connector
 Show_Schemas --> ConnectorMetadata
-BiosClient ..> BiosStatement
+BiosClient ..> BiosQuery
 BiosClient ..> BiosTableKind
 BiosClient ..> BiosTableHandle
 BiosClient ..> BiosColumnHandle
+
+BiosConfig .[hidden]> BiosColumnHandle
+BiosColumnHandle .[hidden]> BiosTableHandle
+
 
 entity Show_Tables <<Trino>>
 Show_Tables --> ConnectorMetadata
@@ -243,9 +246,9 @@ Plugin .[hidden]> ConnectorFactory
 ConnectorFactory .[hidden]> Connector
 Connector .[hidden]> ConnectorMetadata
 ConnectorMetadata .[hidden]> ConnectorTransactionHandle
-ConnectorTransactionHandle .[hidden]> ConnectorTableHandle
-ConnectorTableHandle .[hidden]> ColumnHandle
-ColumnHandle .[hidden]> ConnectorSplitManager
+ConnectorTransactionHandle .[hidden]> ColumnHandle
+ColumnHandle .[hidden]> ConnectorTableHandle
+ConnectorTableHandle .[hidden]> ConnectorSplitManager
 ConnectorSplitManager .[hidden]> ConnectorSplit
 ConnectorSplit .[hidden]> ConnectorRecordSetProvider
 ConnectorRecordSetProvider .[hidden]> RecordSet
@@ -253,13 +256,13 @@ ConnectorRecordSetProvider .[hidden]> RecordSet
 
 BiosMetadata --> BiosClient
 BiosRecordCursor --> BiosClient
+BiosRecordCursor ..> BiosQuery
 
 BiosSplitManager -> BiosSplit
 BiosRecordSetProvider -> BiosRecordSet
 BiosRecordSet -> BiosRecordCursor
 
 
-BiosConfig .[hidden]> BiosTableHandle
 
 
 newpage

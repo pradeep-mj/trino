@@ -79,7 +79,7 @@ public class BiosClient
     private final BiosConfig biosConfig;
     private Supplier<Session> session;
     private Supplier<TenantConfig> tenantConfig;
-    private NonEvictableLoadingCache<BiosStatement, ISqlResponse> dataCache;
+    private NonEvictableLoadingCache<BiosQuery, ISqlResponse> dataCache;
 
     @Inject
     public BiosClient(BiosConfig config)
@@ -99,9 +99,9 @@ public class BiosClient
 
         dataCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
                 .maximumWeight(config.getDataCacheSizeInRows())
-                .weigher(new Weigher<BiosStatement, ISqlResponse>() {
+                .weigher(new Weigher<BiosQuery, ISqlResponse>() {
                     @Override
-                    public int weigh(BiosStatement statement, ISqlResponse response)
+                    public int weigh(BiosQuery statement, ISqlResponse response)
                     {
                         int numRows = 0;
                         numRows += response.getRecords().size();
@@ -112,15 +112,15 @@ public class BiosClient
                     }
                 })
                 .expireAfterWrite(config.getDataCacheSeconds(), TimeUnit.SECONDS),
-                    new CacheLoader<BiosStatement, ISqlResponse>() {
+                    new CacheLoader<BiosQuery, ISqlResponse>() {
                         @Override
-                        public ISqlResponse load(final BiosStatement statement)
+                        public ISqlResponse load(final BiosQuery statement)
                         {
                             return executeInternal(statement);
                         }
                     });
         // Execute one query to initialize bios SDK metrics.
-        execute(new BiosStatement(BiosTableKind.RAW_SIGNAL, addRawSuffix("_requests"), null, null,
+        execute(new BiosQuery("raw_signal", addRawSuffix("_requests"), null, null,
                 System.currentTimeMillis(), -60000L));
     }
 
@@ -194,7 +194,7 @@ public class BiosClient
         };
     }
 
-    public ISqlResponse execute(BiosStatement statement)
+    public ISqlResponse execute(BiosQuery statement)
     {
         statement.setTimeRangeStart(floor(statement.getTimeRangeStart(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
@@ -210,7 +210,7 @@ public class BiosClient
         return divisor * (long) (toBeFloored / divisor);
     }
 
-    private ISqlResponse executeInternal(BiosStatement statement)
+    private ISqlResponse executeInternal(BiosQuery statement)
     {
         ISqlStatement isqlStatement;
         var partialStatement = ISqlStatement.select();
