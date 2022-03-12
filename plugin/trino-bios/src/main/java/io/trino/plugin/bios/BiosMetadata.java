@@ -43,6 +43,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
+import static io.trino.plugin.bios.BiosClient.SIGNAL_TIME_EPOCH_MS_COLUMN;
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
@@ -202,11 +203,18 @@ public class BiosMetadata
             return Optional.empty();
         }
         for (var entry : constraint.getSummary().getDomains().get().entrySet()) {
-            // For any column other than signal timestamp, do not pushdown.
-            if (!((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN)) {
+            long scalingFactor = 1;
+            // For any column other than signal timestamp/epoch, do not pushdown.
+            if (!((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN) &&
+                    !((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIME_EPOCH_MS_COLUMN)) {
                 remainingDomains.put(entry.getKey(), entry.getValue());
                 logger.debug("Not pushing down: %s", ((BiosColumnHandle) entry.getKey()).getColumnName());
                 continue;
+            }
+            // Trino uses microseconds since epoch for timestamps, whereas bios v1 uses
+            // milliseconds.
+            if (((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN)) {
+                scalingFactor = 1000;
             }
 
             // Currently, we only support pushdown of single range predicates on signal timestamp.
@@ -220,14 +228,14 @@ public class BiosMetadata
             }
             var range = sortedRangeSet.getOrderedRanges().get(0);
             if (range.getLowValue().isPresent()) {
-                timeRangeLow = (Long) range.getLowValue().get() / 1000;
+                timeRangeLow = (Long) range.getLowValue().get() / scalingFactor;
                 logger.debug("timeRangeLow provided: %d", timeRangeLow);
             }
             else {
                 timeRangeLow = 0L;
             }
             if (range.getHighValue().isPresent()) {
-                timeRangeHigh = (Long) range.getHighValue().get() / 1000;
+                timeRangeHigh = (Long) range.getHighValue().get() / scalingFactor;
                 logger.debug("timeRangeHigh provided: %d", timeRangeHigh);
             }
             else {

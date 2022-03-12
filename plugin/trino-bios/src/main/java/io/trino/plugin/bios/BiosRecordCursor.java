@@ -29,11 +29,12 @@ import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.trino.plugin.bios.BiosClient.CONTEXT_TIMESTAMP_COLUMN;
+import static io.trino.plugin.bios.BiosClient.CONTEXT_TIME_EPOCH_MS_COLUMN;
 import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
+import static io.trino.plugin.bios.BiosClient.SIGNAL_TIME_EPOCH_MS_COLUMN;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
-import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
 import static io.trino.spi.type.VarbinaryType.VARBINARY;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
@@ -85,6 +86,8 @@ public class BiosRecordCursor
                     .map(BiosColumnHandle::getColumnName)
                     .filter(a -> !Objects.equals(a, SIGNAL_TIMESTAMP_COLUMN))
                     .filter(a -> !Objects.equals(a, CONTEXT_TIMESTAMP_COLUMN))
+                    .filter(a -> !Objects.equals(a, SIGNAL_TIME_EPOCH_MS_COLUMN))
+                    .filter(a -> !Objects.equals(a, CONTEXT_TIME_EPOCH_MS_COLUMN))
                     .toArray(String[]::new);
             BiosStatement statement;
 
@@ -156,13 +159,17 @@ public class BiosRecordCursor
     @Override
     public long getLong(int field)
     {
-        // If this is the timestamp column, use getTimestamp instead of asking for an attribute.
+        // If this is one of the timestamp columns, use getTimestamp instead of asking for an
+        // attribute.
         if (columnHandles.get(field).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN) ||
                 columnHandles.get(field).getColumnName().equals(CONTEXT_TIMESTAMP_COLUMN)) {
-            checkFieldType(field, TIMESTAMP_MICROS);
-            // bios v1 uses milliseconds since epoch, but we want to use microseconds since epoch
-            // for v2 compatibility; convert to micros.
+            // bios v1 uses milliseconds since epoch, but Trino uses
+            // microseconds since epoch for timestamps; convert to micros.
             return currentRecord.getTimestamp() * 1000;
+        }
+        else if (columnHandles.get(field).getColumnName().equals(SIGNAL_TIME_EPOCH_MS_COLUMN) ||
+                columnHandles.get(field).getColumnName().equals(CONTEXT_TIME_EPOCH_MS_COLUMN)) {
+            return currentRecord.getTimestamp();
         }
         checkFieldType(field, BIGINT);
         return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();

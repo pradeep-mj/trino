@@ -62,6 +62,8 @@ public class BiosClient
 {
     public static final String SIGNAL_TIMESTAMP_COLUMN = "__eventTimestamp";
     public static final String CONTEXT_TIMESTAMP_COLUMN = "__upsertTimestamp";
+    public static final String SIGNAL_TIME_EPOCH_MS_COLUMN = "__eventTimeEpochMs";
+    public static final String CONTEXT_TIME_EPOCH_MS_COLUMN = "__upsertTimeEpochMs";
     public static final String RAW_SIGNAL_TABLE_NAME_SUFFIX = "_raw";
 
     private static final Logger logger = Logger.get(BiosClient.class);
@@ -323,6 +325,7 @@ public class BiosClient
         BiosTable table = null;
         String defaultValue = null;
         String timestampColumnName = null;
+        String epochColumnName = null;
 
         switch (schemaName) {
             case "signal":
@@ -337,6 +340,7 @@ public class BiosClient
                     underlyingTableName = removeRawSuffix(tableName);
                 }
                 timestampColumnName = SIGNAL_TIMESTAMP_COLUMN;
+                epochColumnName = SIGNAL_TIME_EPOCH_MS_COLUMN;
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     if (!underlyingTableName.equalsIgnoreCase(signalConfig.getName())) {
                         continue;
@@ -348,6 +352,7 @@ public class BiosClient
             case "context":
                 kind = BiosTableKind.CONTEXT;
                 timestampColumnName = CONTEXT_TIMESTAMP_COLUMN;
+                epochColumnName = CONTEXT_TIME_EPOCH_MS_COLUMN;
                 for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
                     if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
                         continue;
@@ -378,6 +383,7 @@ public class BiosClient
         }
         columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
                 true));
+        columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, true));
 
         table = new BiosTable(tableHandle, columns);
 
