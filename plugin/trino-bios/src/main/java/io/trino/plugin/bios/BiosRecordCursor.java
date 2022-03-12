@@ -114,9 +114,9 @@ public class BiosRecordCursor
                 // First get all the primary key values, and then issue a second query to get
                 // all the attributes for each of those keys.
 
-                BiosTable table = biosClient.getTable(tableHandle.getSchemaName(),
+                var columns = biosClient.getColumnHandles(tableHandle.getSchemaName(),
                         tableHandle.getTableName());
-                String keyColumnName = table.getColumns().get(0).getColumnName();
+                String keyColumnName = columns.get(0).getColumnName();
                 BiosStatement preliminaryStatement = new BiosStatement(BiosTableKind.CONTEXT,
                         tableHandle.getTableName(), new String[]{keyColumnName}, null, null, null);
                 ISqlResponse preliminaryResponse = biosClient.execute(preliminaryStatement);

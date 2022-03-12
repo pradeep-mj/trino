@@ -18,8 +18,6 @@ import com.google.inject.Module;
 import com.google.inject.Scopes;
 
 import static io.airlift.configuration.ConfigBinder.configBinder;
-import static io.airlift.json.JsonCodec.listJsonCodec;
-import static io.airlift.json.JsonCodecBinder.jsonCodecBinder;
 
 public class BiosModule
         implements Module
@@ -29,11 +27,9 @@ public class BiosModule
     {
         binder.bind(BiosConnector.class).in(Scopes.SINGLETON);
         binder.bind(BiosMetadata.class).in(Scopes.SINGLETON);
-        binder.bind(BiosClient.class).in(Scopes.SINGLETON);
         binder.bind(BiosSplitManager.class).in(Scopes.SINGLETON);
         binder.bind(BiosRecordSetProvider.class).in(Scopes.SINGLETON);
+        binder.bind(BiosClient.class).in(Scopes.SINGLETON);
         configBinder(binder).bindConfig(BiosConfig.class);
-
-        jsonCodecBinder(binder).bindMapJsonCodec(String.class, listJsonCodec(BiosTable.class));
     }
 }

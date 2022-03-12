@@ -21,7 +21,6 @@ import com.google.common.cache.Weigher;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
-import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
 import io.isima.bios.models.AttributeConfig;
 import io.isima.bios.models.ContextConfig;
@@ -83,10 +82,9 @@ public class BiosClient
     private NonEvictableLoadingCache<BiosStatement, ISqlResponse> dataCache;
 
     @Inject
-    public BiosClient(BiosConfig config, JsonCodec<Map<String, List<BiosTable>>> catalogCodec)
+    public BiosClient(BiosConfig config)
     {
         requireNonNull(config, "config is null");
-        requireNonNull(catalogCodec, "catalogCodec is null");
 
         requireNonNull(config.getUrl(), "url is null");
         checkArgument(!isNullOrEmpty(config.getEmail()), "email is null");
@@ -235,7 +233,7 @@ public class BiosClient
             else {
                 isqlStatement = partialStatement
                         .fromContext(statement.getUnderlyingTableName())
-                        .where(keys().in(statement.getKeyValues()))
+                        .where(keys().in((java.lang.Object) statement.getKeyValues()))
                         .build();
             }
         }
@@ -312,20 +310,23 @@ public class BiosClient
         return ImmutableSet.copyOf(tableNames);
     }
 
-    public BiosTable getTable(String schemaName, String tableName)
+    public BiosTableHandle getTableHandle(String schemaName, String tableName)
     {
-        // logger.debug("getTable: %s.%s", schemaName, tableName);
+        return new BiosTableHandle(schemaName, tableName);
+    }
+
+    public List<BiosColumnHandle> getColumnHandles(String schemaName, String tableName)
+    {
+        // logger.debug("getColumnHandles: %s.%s", schemaName, tableName);
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
 
-        BiosTableHandle tableHandle = new BiosTableHandle(schemaName, tableName);
         BiosTableKind kind = null;
         List<AttributeConfig> attributes = null;
-        List<BiosColumnHandle> columns = new ArrayList<>();
-        BiosTable table = null;
-        String defaultValue = null;
+        ImmutableList.Builder<BiosColumnHandle> columns = ImmutableList.builder();
         String timestampColumnName = null;
         String epochColumnName = null;
+        String defaultValue = null;
 
         switch (schemaName) {
             case "signal":
@@ -385,9 +386,7 @@ public class BiosClient
                 true));
         columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, true));
 
-        table = new BiosTable(tableHandle, columns);
-
-        return table;
+        return columns.build();
     }
 
     public BiosConfig getBiosConfig()

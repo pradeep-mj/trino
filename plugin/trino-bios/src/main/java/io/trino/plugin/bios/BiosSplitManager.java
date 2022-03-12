@@ -23,7 +23,6 @@ import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.connector.FixedSplitSource;
-import io.trino.spi.connector.TableNotFoundException;
 
 import javax.inject.Inject;
 
@@ -62,13 +61,6 @@ public class BiosSplitManager
         //         dynamicFilter.isComplete(), dynamicFilter.isAwaitable(),
         //         constraint.getSummary().toString(), constraint.predicate().toString(),
         //         Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
-
-        BiosTable table = biosClient.getTable(tableHandle.getSchemaName(), tableHandle.getTableName());
-
-        // this can happen if table is removed during a query
-        if (table == null) {
-            throw new TableNotFoundException(tableHandle.toSchemaTableName());
-        }
 
         List<ConnectorSplit> splits = new ArrayList<>();
         splits.add(new BiosSplit(tableHandle.getTableName()));

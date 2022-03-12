@@ -77,12 +77,7 @@ public class BiosMetadata
             return null;
         }
 
-        BiosTable table = biosClient.getTable(tableName.getSchemaName(), tableName.getTableName());
-        if (table == null) {
-            return null;
-        }
-
-        return table.getTableHandle();
+        return biosClient.getTableHandle(tableName.getSchemaName(), tableName.getTableName());
     }
 
     @Override
@@ -100,15 +95,16 @@ public class BiosMetadata
             return null;
         }
 
-        BiosTable biosTable = biosClient.getTable(schemaTableName.getSchemaName(),
+        var columnHandles = biosClient.getColumnHandles(schemaTableName.getSchemaName(),
                 schemaTableName.getTableName());
-        if (biosTable == null) {
+        if (columnHandles == null) {
             return null;
         }
 
-        List<ColumnMetadata> columns = biosTable.getColumns().stream()
+        List<ColumnMetadata> columns = columnHandles.stream()
                 .map(BiosColumnHandle::getColumnMetadata)
                 .collect(toList());
+
         return new ConnectorTableMetadata(schemaTableName, columns);
     }
 
@@ -134,13 +130,14 @@ public class BiosMetadata
         logger.debug("getColumnHandles");
         BiosTableHandle biosTableHandle = (BiosTableHandle) tableHandle;
 
-        BiosTable table = biosClient.getTable(biosTableHandle.getSchemaName(), biosTableHandle.getTableName());
-        if (table == null) {
+        var columns = biosClient.getColumnHandles(biosTableHandle.getSchemaName(),
+                biosTableHandle.getTableName());
+        if (columns == null) {
             throw new TableNotFoundException(biosTableHandle.toSchemaTableName());
         }
 
         ImmutableMap.Builder<String, ColumnHandle> columnHandles = ImmutableMap.builder();
-        for (BiosColumnHandle column : table.getColumns()) {
+        for (BiosColumnHandle column : columns) {
             columnHandles.put(column.getColumnName(), column);
         }
         return columnHandles.buildOrThrow();
