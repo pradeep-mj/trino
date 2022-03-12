@@ -63,6 +63,12 @@ public class BiosTableHandle
     }
 
     @JsonProperty
+    public String getTableName()
+    {
+        return tableName;
+    }
+
+    @JsonProperty
     public Long getTimeRangeStart()
     {
         return timeRangeStart;
@@ -77,12 +83,6 @@ public class BiosTableHandle
     public Long getTimeRangeDelta()
     {
         return timeRangeDelta;
-    }
-
-    @JsonProperty
-    public String getTableName()
-    {
-        return tableName;
     }
 
     public BiosTableKind getTableKind()

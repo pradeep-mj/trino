@@ -101,7 +101,7 @@ public class BiosClient
                 .maximumWeight(config.getDataCacheSizeInRows())
                 .weigher(new Weigher<BiosQuery, ISqlResponse>() {
                     @Override
-                    public int weigh(BiosQuery statement, ISqlResponse response)
+                    public int weigh(BiosQuery query, ISqlResponse response)
                     {
                         int numRows = 0;
                         numRows += response.getRecords().size();
@@ -114,9 +114,9 @@ public class BiosClient
                 .expireAfterWrite(config.getDataCacheSeconds(), TimeUnit.SECONDS),
                     new CacheLoader<BiosQuery, ISqlResponse>() {
                         @Override
-                        public ISqlResponse load(final BiosQuery statement)
+                        public ISqlResponse load(final BiosQuery query)
                         {
-                            return executeInternal(statement);
+                            return executeInternal(query);
                         }
                     });
         // Execute one query to initialize bios SDK metrics.
@@ -194,12 +194,12 @@ public class BiosClient
         };
     }
 
-    public ISqlResponse execute(BiosQuery statement)
+    public ISqlResponse execute(BiosQuery query)
     {
-        statement.setTimeRangeStart(floor(statement.getTimeRangeStart(),
+        query.setTimeRangeStart(floor(query.getTimeRangeStart(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
 
-        return dataCache.getUnchecked(statement);
+        return dataCache.getUnchecked(query);
     }
 
     private Long floor(Long toBeFloored, long divisor)
@@ -210,35 +210,35 @@ public class BiosClient
         return divisor * (long) (toBeFloored / divisor);
     }
 
-    private ISqlResponse executeInternal(BiosQuery statement)
+    private ISqlResponse executeInternal(BiosQuery query)
     {
         ISqlStatement isqlStatement;
         var partialStatement = ISqlStatement.select();
-        if (statement.getAttributes() != null) {
-            partialStatement = ISqlStatement.select(statement.getAttributes());
+        if (query.getAttributes() != null) {
+            partialStatement = ISqlStatement.select(query.getAttributes());
         }
-        if ((statement.getTableKind() == BiosTableKind.SIGNAL) ||
-                (statement.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
+        if ((query.getTableKind() == BiosTableKind.SIGNAL) ||
+                (query.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
             isqlStatement = partialStatement
-                    .from(statement.getUnderlyingTableName())
-                    .timeRange(statement.getTimeRangeStart(), statement.getTimeRangeDelta())
+                    .from(query.getUnderlyingTableName())
+                    .timeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
                     .build();
         }
         else {
-            if (statement.getKeyValues() == null) {
+            if (query.getKeyValues() == null) {
                 isqlStatement = partialStatement
-                        .fromContext(statement.getUnderlyingTableName())
+                        .fromContext(query.getUnderlyingTableName())
                         .build();
             }
             else {
                 isqlStatement = partialStatement
-                        .fromContext(statement.getUnderlyingTableName())
-                        .where(keys().in((java.lang.Object) statement.getKeyValues()))
+                        .fromContext(query.getUnderlyingTableName())
+                        .where(keys().in((java.lang.Object) query.getKeyValues()))
                         .build();
             }
         }
 
-        logger.debug("----------> bios network request: statement %s", statement);
+        logger.debug("----------> bios network request: statement %s", query);
         ISqlResponse response = execute(isqlStatement);
         long firstWindowRecords = 0;
         if (response.getDataWindows().size() > 0) {

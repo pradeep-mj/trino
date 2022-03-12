@@ -188,6 +188,7 @@ class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
     - Long timeRangeStart
     - Long timeRangeDelta
     + toSchemaTableName ()
+    + getTableKind ()
 }
 
 class BiosQuery << (J, orangeRed) >> {

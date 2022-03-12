@@ -89,7 +89,7 @@ public class BiosRecordCursor
                     .filter(a -> !Objects.equals(a, SIGNAL_TIME_EPOCH_MS_COLUMN))
                     .filter(a -> !Objects.equals(a, CONTEXT_TIME_EPOCH_MS_COLUMN))
                     .toArray(String[]::new);
-            BiosQuery statement;
+            BiosQuery query;
 
             if ((tableHandle.getTableKind() == BiosTableKind.SIGNAL) ||
                     (tableHandle.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
@@ -106,7 +106,7 @@ public class BiosRecordCursor
                     start = System.currentTimeMillis();
                     delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
                 }
-                statement = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
+                query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
                         attributes, null, start, delta);
             }
             else {
@@ -124,11 +124,11 @@ public class BiosRecordCursor
                         .map(r -> r.getAttribute(keyColumnName).asString())
                         .toArray(String[]::new);
 
-                statement = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
+                query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
                         null, keyValues, null, null);
             }
 
-            ISqlResponse response = biosClient.execute(statement);
+            ISqlResponse response = biosClient.execute(query);
             List<Record> data = new ArrayList<>(response.getRecords());
             for (DataWindow window : response.getDataWindows()) {
                 logger.debug("     %d records", window.getRecords().size());
