@@ -24,7 +24,7 @@ import static com.google.common.base.MoreObjects.toStringHelper;
 public final class BiosQuery
         extends BiosTableHandle
 {
-    private final String[] attributes;
+    private String[] attributes;
 
     @JsonCreator
     public BiosQuery(
@@ -52,6 +52,11 @@ public final class BiosQuery
     public String[] getAttributes()
     {
         return attributes;
+    }
+
+    public void setAttributes(String[] attributes)
+    {
+        this.attributes = attributes;
     }
 
     @Override

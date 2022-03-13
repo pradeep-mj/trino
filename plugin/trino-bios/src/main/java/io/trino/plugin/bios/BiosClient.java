@@ -204,8 +204,15 @@ public class BiosClient
 
     public ISqlResponse execute(BiosQuery query)
     {
+        // Normalize query parameters for efficiency.
+        // 1. Align time range.
         query.setTimeRangeStart(floor(query.getTimeRangeStart(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
+        // 2. For raw signals, get all attributes so that we don't have many queries with different
+        //      subsets of attributes.
+        if (query.getTableKind() == BiosTableKind.RAW_SIGNAL) {
+            query.setAttributes(null);
+        }
 
         return dataCache.getUnchecked(query);
     }
