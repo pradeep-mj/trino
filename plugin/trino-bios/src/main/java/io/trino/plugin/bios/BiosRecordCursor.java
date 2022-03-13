@@ -19,19 +19,22 @@ import io.airlift.slice.Slices;
 import io.isima.bios.models.DataWindow;
 import io.isima.bios.models.Record;
 import io.isima.bios.models.isql.ISqlResponse;
+import io.trino.spi.TrinoException;
 import io.trino.spi.connector.RecordCursor;
 import io.trino.spi.type.Type;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_MINUTES;
+import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -47,7 +50,10 @@ public class BiosRecordCursor
     private final BiosClient biosClient;
     private final BiosTableHandle tableHandle;
     private final List<BiosColumnHandle> columnHandles;
+    private Iterator<DataWindow> windows;
     private Iterator<Record> records;
+    private DataWindow currentWindow;
+    private Long currentWindowNum;
     private Record currentRecord;
 
     public BiosRecordCursor(BiosClient biosClient, BiosTableHandle tableHandle,
@@ -77,59 +83,83 @@ public class BiosRecordCursor
         return columnHandles.get(field).getColumnType();
     }
 
+    private boolean isWindowed()
+    {
+        return tableHandle.getTableKind() != BiosTableKind.CONTEXT;
+    }
+
     @Override
     public boolean advanceNextPosition()
     {
-        if (records == null) {
+        // Run the query if it has not already been run.
+        if ((windows == null) && (records == null)) {
             logger.debug("bios got query on table %s", tableHandle.getTableName());
 
             String[] attributes = columnHandles.stream()
+                    .filter(ch -> !ch.getIsVirtual())
                     .map(BiosColumnHandle::getColumnName)
-                    .filter(a -> !Objects.equals(a, COLUMN_SIGNAL_TIMESTAMP))
-                    .filter(a -> !Objects.equals(a, COLUMN_CONTEXT_TIMESTAMP))
-                    .filter(a -> !Objects.equals(a, COLUMN_SIGNAL_TIME_EPOCH_MS))
-                    .filter(a -> !Objects.equals(a, COLUMN_CONTEXT_TIME_EPOCH_MS))
                     .toArray(String[]::new);
 
-            Long start = null;
-            Long delta = null;
-            if ((tableHandle.getTableKind() == BiosTableKind.SIGNAL) ||
-                    (tableHandle.getTableKind() == BiosTableKind.RAW_SIGNAL)) {
-                // For signals, make a simple time-range query.
-
-                if (tableHandle.getTimeRangeStart() != null) {
-                    start = tableHandle.getTimeRangeStart();
-                    delta = tableHandle.getTimeRangeDelta();
-                    logger.debug("Using provided start %d, delta %d", start, delta);
-                }
-                else {
-                    start = System.currentTimeMillis();
-                    delta = -1000 * biosClient.getBiosConfig().getDefaultTimeRangeDeltaSeconds();
-                }
-            }
-
             BiosQuery query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                    start, delta, tableHandle.getWindowSize(), attributes);
-
+                    tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta(),
+                    tableHandle.getWindowSize(), attributes);
             ISqlResponse response = biosClient.execute(query);
-            List<Record> data = new ArrayList<>(response.getRecords());
-            for (DataWindow window : response.getDataWindows()) {
-                logger.debug("     %d records", window.getRecords().size());
-                data.addAll(window.getRecords());
-            }
-            records = data.iterator();
 
-            // if (data.size() > 0) {
-            //     logger.debug("First record: timestamp: %d", data.get(0).getTimestamp());
-            //     logger.debug("First record: %s", data.get(0).toString());
-            //     logger.debug("First record: %s", Arrays.toString(data.get(0).attributes().toArray()));
-            // }
+            if (isWindowed()) {
+                windows = response.getDataWindows().iterator();
+                if (windows.hasNext()) {
+                    currentWindow = windows.next();
+                    currentWindowNum = 0L;
+                    records = currentWindow.getRecords().iterator();
+                    logger.debug("     %d records in window %d", currentWindow.getRecords().size(),
+                            currentWindowNum);
+                }
+            }
+            else {
+                List<Record> data = new ArrayList<>(response.getRecords());
+                records = data.iterator();
+                logger.debug("     %d records", data.size());
+            }
         }
-        if (!records.hasNext()) {
-            return false;
+
+        // Get the next record if present.
+        if (isWindowed()) {
+            if (records == null) {
+                // We have no more records left.
+                return false;
+            }
+            if (records.hasNext()) {
+                currentRecord = records.next();
+                return true;
+            }
+            else {
+                // This window has run out of records; use the next window that has records.
+                while (windows.hasNext()) {
+                    currentWindow = windows.next();
+                    currentWindowNum++;
+                    records = currentWindow.getRecords().iterator();
+                    logger.debug("     %d records in window %d", currentWindow.getRecords().size(),
+                            currentWindowNum);
+                    if (records.hasNext()) {
+                        currentRecord = records.next();
+                        return true;
+                    }
+                }
+                // There are no more windows, so no more records left.
+                records = null;
+                return false;
+            }
         }
-        currentRecord = records.next();
-        return true;
+        else {
+            // The non-windowed case is simple - a single list of records.
+            if (records.hasNext()) {
+                currentRecord = records.next();
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
     }
 
     @Override
@@ -142,20 +172,36 @@ public class BiosRecordCursor
     @Override
     public long getLong(int field)
     {
-        // If this is one of the timestamp columns, use getTimestamp instead of asking for an
-        // attribute.
-        if (columnHandles.get(field).getColumnName().equals(COLUMN_SIGNAL_TIMESTAMP) ||
-                columnHandles.get(field).getColumnName().equals(COLUMN_CONTEXT_TIMESTAMP)) {
-            // bios v1 uses milliseconds since epoch, but Trino uses
-            // microseconds since epoch for timestamps; convert to micros.
-            return currentRecord.getTimestamp() * 1000;
+        String columnName = columnHandles.get(field).getColumnName();
+
+        switch (columnName) {
+            case COLUMN_SIGNAL_TIMESTAMP:
+            case COLUMN_CONTEXT_TIMESTAMP:
+                // bios v1 uses milliseconds since epoch, but Trino uses
+                // microseconds since epoch for timestamps; convert to micros.
+                return currentRecord.getTimestamp() * 1000;
+
+            case COLUMN_SIGNAL_TIME_EPOCH_MS:
+            case COLUMN_CONTEXT_TIME_EPOCH_MS:
+                checkFieldType(field, BIGINT);
+                return currentRecord.getTimestamp();
+
+            case COLUMN_WINDOW_SIZE_MINUTES:
+                throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_MINUTES +
+                        " can only be used in the where clause.");
+
+            case COLUMN_WINDOW_BEGIN_EPOCH:
+                if (!isWindowed()) {
+                    throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_EPOCH +
+                            " can only be used for a windowed query.");
+                }
+                // bios v1 uses milliseconds since epoch, but this virtual column is in seconds.
+                return currentWindow.getWindowBeginTime() / 1000;
+
+            default:
+                checkFieldType(field, BIGINT);
+                return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
         }
-        else if (columnHandles.get(field).getColumnName().equals(COLUMN_SIGNAL_TIME_EPOCH_MS) ||
-                columnHandles.get(field).getColumnName().equals(COLUMN_CONTEXT_TIME_EPOCH_MS)) {
-            return currentRecord.getTimestamp();
-        }
-        checkFieldType(field, BIGINT);
-        return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
     }
 
     @Override

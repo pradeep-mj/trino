@@ -31,7 +31,7 @@ public class BiosTableHandle
     protected final String schemaName;
     protected final String tableName;
     protected Long timeRangeStart;
-    protected final Long timeRangeDelta;
+    protected Long timeRangeDelta;
     protected Long windowSize;
 
     @JsonCreator
@@ -87,6 +87,11 @@ public class BiosTableHandle
     public Long getTimeRangeDelta()
     {
         return timeRangeDelta;
+    }
+
+    public void setTimeRangeDelta(Long timeRangeDelta)
+    {
+        this.timeRangeDelta = timeRangeDelta;
     }
 
     @JsonProperty

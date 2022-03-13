@@ -206,20 +206,39 @@ public class BiosClient
         return divisor * (long) (toBeFloored / divisor);
     }
 
+    private Long ceiling(Long toBeCeiled, long divisor)
+    {
+        if (toBeCeiled == null) {
+            return null;
+        }
+        return divisor * (long) (((toBeCeiled - 1) / divisor) + 1);
+    }
+
     public ISqlResponse execute(BiosQuery query)
     {
-        // Normalize query parameters for efficiency.
-        // 1. Align time range.
+        // Normalize query parameters for efficiency and add defaults.
+
+        // -- Set defaults for parameters not already set.
+        if (query.getTimeRangeStart() == null) {
+            query.setTimeRangeStart(System.currentTimeMillis());
+        }
+        if (query.getTimeRangeDelta() == null) {
+            query.setTimeRangeDelta(-1000 * biosConfig.getDefaultTimeRangeDeltaSeconds());
+        }
+        if (query.getWindowSize() == null) {
+            query.setWindowSize(biosConfig.getDefaultWindowSizeMinutes() * 60 * 1000);
+        }
+
+        // -- Align time range and delta.
         query.setTimeRangeStart(floor(query.getTimeRangeStart(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
-        // 2. For raw signals, get all attributes so that we don't have many queries with different
+        query.setTimeRangeDelta(ceiling(query.getTimeRangeDelta(),
+                biosConfig.getDataAlignmentSeconds() * 1000));
+
+        // -- For raw signals, get all attributes so that we don't have many queries with different
         //      subsets of attributes.
         if (query.getTableKind() == BiosTableKind.RAW_SIGNAL) {
             query.setAttributes(null);
-        }
-        // 3. For aggregated signals, set the windowSize if not already set.
-        if (query.getWindowSize() == null) {
-            query.setWindowSize(biosConfig.getDefaultWindowSizeMinutes() * 60 * 1000);
         }
 
         return dataCache.getUnchecked(query);
