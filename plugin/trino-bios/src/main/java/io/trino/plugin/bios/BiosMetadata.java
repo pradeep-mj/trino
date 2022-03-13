@@ -17,6 +17,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.airlift.log.Logger;
+import io.trino.spi.TrinoException;
+import io.trino.spi.connector.AggregateFunction;
+import io.trino.spi.connector.AggregationApplicationResult;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.ConnectorMetadata;
@@ -30,6 +33,7 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.Domain;
+import io.trino.spi.predicate.EquatableValueSet;
 import io.trino.spi.predicate.SortedRangeSet;
 import io.trino.spi.predicate.TupleDomain;
 
@@ -42,8 +46,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
-import static io.trino.plugin.bios.BiosClient.SIGNAL_TIME_EPOCH_MS_COLUMN;
+import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
+import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_MINUTES;
+import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
@@ -182,17 +188,17 @@ public class BiosMetadata
     }
 
     @Override
-    public Optional<ConstraintApplicationResult<ConnectorTableHandle>> applyFilter(ConnectorSession session, ConnectorTableHandle tableHandle, Constraint constraint)
+    public Optional<ConstraintApplicationResult<ConnectorTableHandle>> applyFilter(ConnectorSession session, ConnectorTableHandle handle, Constraint constraint)
     {
-        BiosTableHandle handle = (BiosTableHandle) tableHandle;
-        long timeRangeLow;
-        long timeRangeHigh;
+        BiosTableHandle tableHandle = (BiosTableHandle) handle;
+        boolean somePushdownApplied = false;
         Long timeRangeStart = null;
         Long timeRangeDelta = null;
+        Long windowSize = null;
         Map<ColumnHandle, Domain> remainingDomains = new HashMap<>();
 
         logger.debug("applyFilter %s: constraint: %s  %s  %s",
-                handle.toSchemaTableName(),
+                tableHandle.toSchemaTableName(),
                 constraint.getSummary().toString(), constraint.predicate().toString(),
                 Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
 
@@ -200,61 +206,102 @@ public class BiosMetadata
             return Optional.empty();
         }
         for (var entry : constraint.getSummary().getDomains().get().entrySet()) {
-            long scalingFactor = 1;
-            // For any column other than signal timestamp/epoch, do not pushdown.
-            if (!((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN) &&
-                    !((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIME_EPOCH_MS_COLUMN)) {
-                remainingDomains.put(entry.getKey(), entry.getValue());
-                logger.debug("Not pushing down: %s", ((BiosColumnHandle) entry.getKey()).getColumnName());
-                continue;
-            }
-            // Trino uses microseconds since epoch for timestamps, whereas bios v1 uses
-            // milliseconds.
-            if (((BiosColumnHandle) entry.getKey()).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN)) {
-                scalingFactor = 1000;
-            }
+            String columnName = ((BiosColumnHandle) entry.getKey()).getColumnName();
 
-            // Currently, we only support pushdown of single range predicates on signal timestamp.
-            var valueSet = entry.getValue().getValues();
-            if (!(valueSet instanceof SortedRangeSet)) {
-                return Optional.empty();
+            switch (columnName) {
+                case COLUMN_SIGNAL_TIMESTAMP:
+                case COLUMN_SIGNAL_TIME_EPOCH_MS:
+                    // If we have not already set the time range, pushdown time range.
+                    if ((timeRangeStart == null)) {
+                        long timeRangeLow;
+                        long timeRangeHigh;
+                        // Trino uses microseconds since epoch for timestamps, whereas bios v1 uses
+                        // milliseconds.
+                        long scalingFactor = 1;
+                        if (columnName.equals(COLUMN_SIGNAL_TIMESTAMP)) {
+                            scalingFactor = 1000;
+                        }
+
+                        // Currently, we only support pushdown of single range predicates on signal timestamp.
+                        var valueSet = entry.getValue().getValues();
+                        if (!(valueSet instanceof SortedRangeSet)) {
+                            continue;
+                        }
+                        var sortedRangeSet = (SortedRangeSet) valueSet;
+                        if ((sortedRangeSet.getRangeCount() != 1) || sortedRangeSet.isAll() || sortedRangeSet.isNone() || sortedRangeSet.isDiscreteSet()) {
+                            continue;
+                        }
+                        var range = sortedRangeSet.getOrderedRanges().get(0);
+                        if (range.getLowValue().isPresent()) {
+                            timeRangeLow = (Long) range.getLowValue().get() / scalingFactor;
+                            logger.debug("timeRangeLow provided: %d", timeRangeLow);
+                        }
+                        else {
+                            timeRangeLow = 0L;
+                        }
+                        if (range.getHighValue().isPresent()) {
+                            timeRangeHigh = (Long) range.getHighValue().get() / scalingFactor;
+                            logger.debug("timeRangeHigh provided: %d", timeRangeHigh);
+                        }
+                        else {
+                            timeRangeHigh = System.currentTimeMillis();
+                        }
+                        timeRangeStart = timeRangeLow;
+                        timeRangeDelta = timeRangeHigh - timeRangeLow;
+                        somePushdownApplied = true;
+                        logger.debug("pushdown: timeRangeStart %d, timeRangeDelta %d", timeRangeStart, timeRangeDelta);
+                    }
+                    break;
+
+                case COLUMN_WINDOW_SIZE_MINUTES:
+                    var valueSet = entry.getValue().getValues();
+                    if (!(valueSet instanceof EquatableValueSet)) {
+                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_MINUTES +
+                                " can only be equated to a specific value.");
+                    }
+                    var windowSizeValueSet = (EquatableValueSet) valueSet;
+                    if (!windowSizeValueSet.isSingleValue()) {
+                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_MINUTES +
+                                " can only be equated to a single value.");
+                    }
+                    // Set the window size.
+                    windowSize = ((Long) windowSizeValueSet.getSingleValue()) * 60 * 1000;
+                    somePushdownApplied = true;
+                    logger.debug("pushdown: windowSize %d", windowSize);
+                    break;
+
+                default:
+                    remainingDomains.put(entry.getKey(), entry.getValue());
+                    logger.debug("Not pushing down: %s", columnName);
+                    break;
             }
-            var sortedRangeSet = (SortedRangeSet) valueSet;
-            if ((sortedRangeSet.getRangeCount() != 1) || sortedRangeSet.isAll() || sortedRangeSet.isNone() || sortedRangeSet.isDiscreteSet()) {
-                return Optional.empty();
-            }
-            var range = sortedRangeSet.getOrderedRanges().get(0);
-            if (range.getLowValue().isPresent()) {
-                timeRangeLow = (Long) range.getLowValue().get() / scalingFactor;
-                logger.debug("timeRangeLow provided: %d", timeRangeLow);
-            }
-            else {
-                timeRangeLow = 0L;
-            }
-            if (range.getHighValue().isPresent()) {
-                timeRangeHigh = (Long) range.getHighValue().get() / scalingFactor;
-                logger.debug("timeRangeHigh provided: %d", timeRangeHigh);
-            }
-            else {
-                timeRangeHigh = System.currentTimeMillis();
-            }
-            timeRangeStart = timeRangeLow;
-            timeRangeDelta = timeRangeHigh - timeRangeLow;
         }
 
-        if (timeRangeStart != null) {
-            logger.debug("pushdown: timeRangeStart %d, timeRangeDelta %d", timeRangeStart, timeRangeDelta);
-
+        if (somePushdownApplied) {
             TupleDomain<ColumnHandle> remainingFilter = withColumnDomains(remainingDomains);
             return Optional.of(
                     new ConstraintApplicationResult<>(
-                            new BiosTableHandle(handle.getSchemaName(), handle.getTableName(),
-                                    timeRangeStart, timeRangeDelta),
+                            new BiosTableHandle(tableHandle.getSchemaName(), tableHandle.getTableName(),
+                                    timeRangeStart, timeRangeDelta, windowSize),
                             remainingFilter,
                             false));
         }
         else {
             return Optional.empty();
         }
+    }
+
+    @Override
+    public Optional<AggregationApplicationResult<ConnectorTableHandle>> applyAggregation(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<AggregateFunction> aggregates,
+            Map<String, ColumnHandle> assignments,
+            List<List<ColumnHandle>> groupingSets)
+    {
+        BiosTableHandle tableHandle = (BiosTableHandle) handle;
+        logger.debug("applyAggregation %s: aggregates: %s  %s  %s",
+                tableHandle.toSchemaTableName(), aggregates, assignments, groupingSets);
+        return Optional.empty();
     }
 }

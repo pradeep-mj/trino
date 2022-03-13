@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static io.trino.plugin.bios.BiosClient.CONTEXT_TIMESTAMP_COLUMN;
-import static io.trino.plugin.bios.BiosClient.CONTEXT_TIME_EPOCH_MS_COLUMN;
-import static io.trino.plugin.bios.BiosClient.SIGNAL_TIMESTAMP_COLUMN;
-import static io.trino.plugin.bios.BiosClient.SIGNAL_TIME_EPOCH_MS_COLUMN;
+import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIMESTAMP;
+import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIME_EPOCH_MS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
+import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -85,10 +85,10 @@ public class BiosRecordCursor
 
             String[] attributes = columnHandles.stream()
                     .map(BiosColumnHandle::getColumnName)
-                    .filter(a -> !Objects.equals(a, SIGNAL_TIMESTAMP_COLUMN))
-                    .filter(a -> !Objects.equals(a, CONTEXT_TIMESTAMP_COLUMN))
-                    .filter(a -> !Objects.equals(a, SIGNAL_TIME_EPOCH_MS_COLUMN))
-                    .filter(a -> !Objects.equals(a, CONTEXT_TIME_EPOCH_MS_COLUMN))
+                    .filter(a -> !Objects.equals(a, COLUMN_SIGNAL_TIMESTAMP))
+                    .filter(a -> !Objects.equals(a, COLUMN_CONTEXT_TIMESTAMP))
+                    .filter(a -> !Objects.equals(a, COLUMN_SIGNAL_TIME_EPOCH_MS))
+                    .filter(a -> !Objects.equals(a, COLUMN_CONTEXT_TIME_EPOCH_MS))
                     .toArray(String[]::new);
 
             Long start = null;
@@ -109,7 +109,7 @@ public class BiosRecordCursor
             }
 
             BiosQuery query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                    start, delta, attributes);
+                    start, delta, tableHandle.getWindowSize(), attributes);
 
             ISqlResponse response = biosClient.execute(query);
             List<Record> data = new ArrayList<>(response.getRecords());
@@ -144,14 +144,14 @@ public class BiosRecordCursor
     {
         // If this is one of the timestamp columns, use getTimestamp instead of asking for an
         // attribute.
-        if (columnHandles.get(field).getColumnName().equals(SIGNAL_TIMESTAMP_COLUMN) ||
-                columnHandles.get(field).getColumnName().equals(CONTEXT_TIMESTAMP_COLUMN)) {
+        if (columnHandles.get(field).getColumnName().equals(COLUMN_SIGNAL_TIMESTAMP) ||
+                columnHandles.get(field).getColumnName().equals(COLUMN_CONTEXT_TIMESTAMP)) {
             // bios v1 uses milliseconds since epoch, but Trino uses
             // microseconds since epoch for timestamps; convert to micros.
             return currentRecord.getTimestamp() * 1000;
         }
-        else if (columnHandles.get(field).getColumnName().equals(SIGNAL_TIME_EPOCH_MS_COLUMN) ||
-                columnHandles.get(field).getColumnName().equals(CONTEXT_TIME_EPOCH_MS_COLUMN)) {
+        else if (columnHandles.get(field).getColumnName().equals(COLUMN_SIGNAL_TIME_EPOCH_MS) ||
+                columnHandles.get(field).getColumnName().equals(COLUMN_CONTEXT_TIME_EPOCH_MS)) {
             return currentRecord.getTimestamp();
         }
         checkFieldType(field, BIGINT);

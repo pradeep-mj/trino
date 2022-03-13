@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static io.trino.plugin.bios.BiosClient.VIRTUAL_PREFIX;
 import static java.util.Objects.requireNonNull;
 
 public final class BiosColumnHandle
@@ -32,21 +33,18 @@ public final class BiosColumnHandle
     private final Type columnType;
     private final String defaultValue;
     private final boolean isKey;
-    private final boolean isRecordTimestamp;
 
     @JsonCreator
     public BiosColumnHandle(
             @JsonProperty("columnName") String columnName,
             @JsonProperty("columnType") Type columnType,
             @JsonProperty("defaultValue") String defaultValue,
-            @JsonProperty("isKey") boolean isKey,
-            @JsonProperty("isRecordTimestamp") boolean isRecordTimestamp)
+            @JsonProperty("isKey") boolean isKey)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
         this.defaultValue = defaultValue;
         this.isKey = isKey;
-        this.isRecordTimestamp = isRecordTimestamp;
     }
 
     @JsonProperty
@@ -68,9 +66,9 @@ public final class BiosColumnHandle
     }
 
     @JsonProperty
-    public boolean getIsRecordTimestamp()
+    public boolean getIsVirtual()
     {
-        return isRecordTimestamp;
+        return columnName.startsWith(VIRTUAL_PREFIX);
     }
 
     public ColumnMetadata getColumnMetadata()
@@ -88,7 +86,7 @@ public final class BiosColumnHandle
         if (defaultValue != null) {
             builder.setComment(Optional.of(String.format("default: %s", defaultValue)));
         }
-        if (isRecordTimestamp) {
+        if (getIsVirtual()) {
             builder.setComment(Optional.of("virtual column"));
         }
 
@@ -98,7 +96,7 @@ public final class BiosColumnHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnName, columnType, defaultValue, isKey, isRecordTimestamp);
+        return Objects.hash(columnName, columnType, defaultValue, isKey);
     }
 
     @Override
@@ -115,8 +113,7 @@ public final class BiosColumnHandle
         return Objects.equals(this.columnName, other.columnName) &&
                 Objects.equals(this.columnType, other.columnType) &&
                 Objects.equals(this.defaultValue, other.defaultValue) &&
-                this.isKey == other.isKey &&
-                this.isRecordTimestamp == other.isRecordTimestamp;
+                this.isKey == other.isKey;
     }
 
     @Override
@@ -127,7 +124,6 @@ public final class BiosColumnHandle
                 .add("columnType", columnType)
                 .add("defaultValue", defaultValue)
                 .add("isKey", isKey)
-                .add("isRecordTimestamp", isRecordTimestamp)
                 .omitNullValues()
                 .toString();
     }

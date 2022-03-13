@@ -32,9 +32,10 @@ public final class BiosQuery
             @JsonProperty("tableName") String tableName,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta,
+            @JsonProperty("windowSize") Long windowSize,
             @JsonProperty("attributes") String[] attributes)
     {
-        super(schemaName, tableName, timeRangeStart, timeRangeDelta);
+        super(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize);
         this.attributes = attributes;
     }
 

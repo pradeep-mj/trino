@@ -151,11 +151,12 @@ class BiosConfig << (P, orange) >> {
     + URI url;
     + ** String email; **
     + ** String password; **
-    + Long defaultTimeRangeDeltaSeconds;
     + Long metadataCacheSeconds;
     + Long dataCacheSeconds;
     + Long dataAlignmentSeconds;
     + Long dataCacheSizeInRows;
+    + Long defaultTimeRangeDeltaSeconds;
+    + Long defaultWindowSizeMinutes;
 }
 
 interface ColumnHandle <<Trino>> {
@@ -169,7 +170,7 @@ class BiosColumnHandle << (J, orangeRed) >> implements ColumnHandle {
     - Type columnType
     - String defaultValue
     - boolean isKey
-    - boolean isRecordTimestamp
+    + boolean getIsVirtual ()
     + getColumnMetadata ()
 }
 

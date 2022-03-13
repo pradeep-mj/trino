@@ -32,18 +32,21 @@ public class BiosTableHandle
     protected final String tableName;
     protected Long timeRangeStart;
     protected final Long timeRangeDelta;
+    protected Long windowSize;
 
     @JsonCreator
     public BiosTableHandle(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
-            @JsonProperty("timeRangeDelta") Long timeRangeDelta)
+            @JsonProperty("timeRangeDelta") Long timeRangeDelta,
+            @JsonProperty("windowSize") Long windowSize)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.timeRangeStart = timeRangeStart;
         this.timeRangeDelta = timeRangeDelta;
+        this.windowSize = windowSize;
     }
 
     public BiosTableHandle(
@@ -54,6 +57,7 @@ public class BiosTableHandle
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.timeRangeStart = null;
         this.timeRangeDelta = null;
+        this.windowSize = null;
     }
 
     @JsonProperty
@@ -85,20 +89,29 @@ public class BiosTableHandle
         return timeRangeDelta;
     }
 
+    @JsonProperty
+    public Long getWindowSize()
+    {
+        return windowSize;
+    }
+
+    public void setWindowSize(Long windowSize)
+    {
+        this.windowSize = windowSize;
+    }
+
     public BiosTableKind getTableKind()
     {
-        if (schemaName.equals("context")) {
-            return BiosTableKind.CONTEXT;
-        }
-        else if (schemaName.equals("signal")) {
-            return BiosTableKind.SIGNAL;
-        }
-        else if (schemaName.equals("raw_signal")) {
-            return BiosTableKind.RAW_SIGNAL;
-        }
-        else {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR,
-                "bi(OS) was given invalid schema name: " + schemaName);
+        switch (schemaName) {
+            case "context":
+                return BiosTableKind.CONTEXT;
+            case "signal":
+                return BiosTableKind.SIGNAL;
+            case "raw_signal":
+                return BiosTableKind.RAW_SIGNAL;
+            default:
+                throw new TrinoException(GENERIC_INTERNAL_ERROR,
+                        "bi(OS) was given invalid schema name: " + schemaName);
         }
     }
 
@@ -110,7 +123,7 @@ public class BiosTableHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta);
+        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize);
     }
 
     @Override
@@ -127,7 +140,8 @@ public class BiosTableHandle
         return Objects.equals(this.schemaName, other.schemaName) &&
                 Objects.equals(this.tableName, other.tableName) &&
                 Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
-                Objects.equals(this.timeRangeDelta, other.timeRangeDelta);
+                Objects.equals(this.timeRangeDelta, other.timeRangeDelta) &&
+                Objects.equals(this.windowSize, other.windowSize);
     }
 
     @Override
@@ -138,6 +152,7 @@ public class BiosTableHandle
                 .add("tableName", tableName)
                 .add("timeRangeStart", timeRangeStart)
                 .add("timeRangeDelta", timeRangeDelta)
+                .add("windowSize", windowSize)
                 .omitNullValues()
                 .toString();
     }

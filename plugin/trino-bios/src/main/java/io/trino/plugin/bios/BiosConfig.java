@@ -24,11 +24,12 @@ public class BiosConfig
     private URI url;
     private String email;
     private String password;
-    private Long defaultTimeRangeDeltaSeconds;
     private Long metadataCacheSeconds;
     private Long dataCacheSeconds;
     private Long dataAlignmentSeconds;
     private Long dataCacheSizeInRows;
+    private Long defaultTimeRangeDeltaSeconds;
+    private Long defaultWindowSizeMinutes;
 
     public URI getUrl()
     {
@@ -65,18 +66,6 @@ public class BiosConfig
     public BiosConfig setPassword(String password)
     {
         this.password = password;
-        return this;
-    }
-
-    public Long getDefaultTimeRangeDeltaSeconds()
-    {
-        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 900L;
-    }
-
-    @Config("bios.defaultTimeRangeDeltaSeconds")
-    public BiosConfig setDefaultTimeRangeDeltaSeconds(Long defaultTimeRangeDeltaSeconds)
-    {
-        this.defaultTimeRangeDeltaSeconds = defaultTimeRangeDeltaSeconds;
         return this;
     }
 
@@ -125,6 +114,30 @@ public class BiosConfig
     public BiosConfig setDataCacheSizeInRows(Long dataCacheSizeInRows)
     {
         this.dataCacheSizeInRows = dataCacheSizeInRows;
+        return this;
+    }
+
+    public Long getDefaultTimeRangeDeltaSeconds()
+    {
+        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 900L;
+    }
+
+    @Config("bios.defaultTimeRangeDeltaSeconds")
+    public BiosConfig setDefaultTimeRangeDeltaSeconds(Long defaultTimeRangeDeltaSeconds)
+    {
+        this.defaultTimeRangeDeltaSeconds = defaultTimeRangeDeltaSeconds;
+        return this;
+    }
+
+    public Long getDefaultWindowSizeMinutes()
+    {
+        return defaultWindowSizeMinutes != null ? defaultWindowSizeMinutes : 300L;
+    }
+
+    @Config("bios.defaultWindowSizeMinutes")
+    public BiosConfig setDefaultWindowSizeMinutes(Long defaultWindowSizeMinutes)
+    {
+        this.defaultWindowSizeMinutes = defaultWindowSizeMinutes;
         return this;
     }
 }

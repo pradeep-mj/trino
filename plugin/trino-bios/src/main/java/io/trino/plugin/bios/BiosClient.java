@@ -59,11 +59,15 @@ import static java.util.Objects.requireNonNull;
 
 public class BiosClient
 {
-    public static final String SIGNAL_TIMESTAMP_COLUMN = "__eventTimestamp";
-    public static final String CONTEXT_TIMESTAMP_COLUMN = "__upsertTimestamp";
-    public static final String SIGNAL_TIME_EPOCH_MS_COLUMN = "__eventTimeEpochMs";
-    public static final String CONTEXT_TIME_EPOCH_MS_COLUMN = "__upsertTimeEpochMs";
     public static final String RAW_SIGNAL_TABLE_NAME_SUFFIX = "_raw";
+    public static final String VIRTUAL_PREFIX = "__";
+
+    public static final String COLUMN_SIGNAL_TIMESTAMP = VIRTUAL_PREFIX + "eventTimestamp";
+    public static final String COLUMN_CONTEXT_TIMESTAMP = VIRTUAL_PREFIX + "upsertTimestamp";
+    public static final String COLUMN_SIGNAL_TIME_EPOCH_MS = VIRTUAL_PREFIX + "eventTimeEpochMs";
+    public static final String COLUMN_CONTEXT_TIME_EPOCH_MS = VIRTUAL_PREFIX + "upsertTimeEpochMs";
+    public static final String COLUMN_WINDOW_SIZE_MINUTES = VIRTUAL_PREFIX + "windowSizeMinutes";
+    public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "windowBeginEpoch";
 
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
@@ -121,7 +125,7 @@ public class BiosClient
                     });
         // Execute one query to initialize bios SDK metrics.
         execute(new BiosQuery("raw_signal", addRawSuffix("_requests"),
-                System.currentTimeMillis(), -60000L, null));
+                System.currentTimeMillis(), -60000L, null, null));
     }
 
     /**
@@ -212,6 +216,10 @@ public class BiosClient
         //      subsets of attributes.
         if (query.getTableKind() == BiosTableKind.RAW_SIGNAL) {
             query.setAttributes(null);
+        }
+        // 3. For aggregated signals, set the windowSize if not already set.
+        if (query.getWindowSize() == null) {
+            query.setWindowSize(biosConfig.getDefaultWindowSizeMinutes() * 60 * 1000);
         }
 
         return dataCache.getUnchecked(query);
@@ -356,8 +364,8 @@ public class BiosClient
                     kind = BiosTableKind.RAW_SIGNAL;
                     underlyingTableName = removeRawSuffix(tableName);
                 }
-                timestampColumnName = SIGNAL_TIMESTAMP_COLUMN;
-                epochColumnName = SIGNAL_TIME_EPOCH_MS_COLUMN;
+                timestampColumnName = COLUMN_SIGNAL_TIMESTAMP;
+                epochColumnName = COLUMN_SIGNAL_TIME_EPOCH_MS;
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     if (!underlyingTableName.equalsIgnoreCase(signalConfig.getName())) {
                         continue;
@@ -368,8 +376,8 @@ public class BiosClient
                 break;
             case "context":
                 kind = BiosTableKind.CONTEXT;
-                timestampColumnName = CONTEXT_TIMESTAMP_COLUMN;
-                epochColumnName = CONTEXT_TIME_EPOCH_MS_COLUMN;
+                timestampColumnName = COLUMN_CONTEXT_TIMESTAMP;
+                epochColumnName = COLUMN_CONTEXT_TIME_EPOCH_MS;
                 for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
                     if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
                         continue;
@@ -394,13 +402,17 @@ public class BiosClient
                 defaultValue = null;
             }
             BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                    defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, false);
+                    defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute);
             isFirstAttribute = false;
             columns.add(columnHandle);
         }
-        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
-                true));
-        columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, true));
+        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false));
+        columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false));
+
+        if (schemaName.equals("signal")) {
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_SIZE_MINUTES, BIGINT, null, false));
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false));
+        }
 
         return columns.build();
     }
