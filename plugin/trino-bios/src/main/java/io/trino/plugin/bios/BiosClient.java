@@ -28,6 +28,7 @@ import io.isima.bios.models.SignalConfig;
 import io.isima.bios.models.TenantConfig;
 import io.isima.bios.models.isql.ISqlResponse;
 import io.isima.bios.models.isql.ISqlStatement;
+import io.isima.bios.models.isql.Metric;
 import io.isima.bios.sdk.Bios;
 import io.isima.bios.sdk.Session;
 import io.isima.bios.sdk.exceptions.BiosClientException;
@@ -37,7 +38,9 @@ import io.trino.spi.TrinoException;
 import io.trino.spi.type.Type;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,7 +49,12 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static io.isima.bios.models.isql.Metric.count;
+import static io.isima.bios.models.isql.Metric.max;
+import static io.isima.bios.models.isql.Metric.min;
+import static io.isima.bios.models.isql.Metric.sum;
 import static io.isima.bios.models.isql.WhereClause.keys;
+import static io.isima.bios.models.isql.Window.tumbling;
 import static io.isima.bios.sdk.errors.BiosClientError.SESSION_EXPIRED;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -66,11 +74,12 @@ public class BiosClient
     public static final String COLUMN_CONTEXT_TIMESTAMP = VIRTUAL_PREFIX + "upsertTimestamp";
     public static final String COLUMN_SIGNAL_TIME_EPOCH_MS = VIRTUAL_PREFIX + "eventTimeEpochMs";
     public static final String COLUMN_CONTEXT_TIME_EPOCH_MS = VIRTUAL_PREFIX + "upsertTimeEpochMs";
-    public static final String COLUMN_WINDOW_SIZE_MINUTES = VIRTUAL_PREFIX + "windowSizeMinutes";
+    public static final String COLUMN_WINDOW_SIZE_SECONDS = VIRTUAL_PREFIX + "windowSizeSeconds";
     public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "windowBeginEpoch";
 
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
+    private static final Set<String> aggregates;
 
     static {
         biosTypeMap.put("integer", BIGINT);
@@ -78,6 +87,12 @@ public class BiosClient
         biosTypeMap.put("string", VARCHAR);
         biosTypeMap.put("decimal", DOUBLE);
         biosTypeMap.put("blob", VARBINARY);
+
+        aggregates = new HashSet<String>(Arrays.asList("sum", "count", "min", "max",
+                "avg", "variance", "stddev", "skewness", "kurtosis", "sum2", "sum3", "sum4",
+                "median", "p0_01", "p0_1", "p1", "p10", "p25", "p50", "p75", "p90", "p99", "p99_9", "p99_99",
+                "distinctcount", "dclb1", "dcub1", "dclb2", "dcub2", "dclb3", "dcub3",
+                "numsamples", "samplingfraction"));
     }
 
     private final BiosConfig biosConfig;
@@ -125,7 +140,7 @@ public class BiosClient
                     });
         // Execute one query to initialize bios SDK metrics.
         execute(new BiosQuery("raw_signal", addRawSuffix("_requests"),
-                System.currentTimeMillis(), -60000L, null, null));
+                System.currentTimeMillis(), -60000L, null, null, null, null));
     }
 
     /**
@@ -147,7 +162,7 @@ public class BiosClient
                         + "has been reestablished; please retry the query.");
             }
             else {
-                throw new RuntimeException(biosClientException.toString());
+                throw new RuntimeException(biosClientException);
             }
         }
         else {
@@ -211,7 +226,7 @@ public class BiosClient
         if (toBeCeiled == null) {
             return null;
         }
-        return divisor * (long) (((toBeCeiled - 1) / divisor) + 1);
+        return (long) Math.signum(toBeCeiled) * divisor * (long) (((Math.abs(toBeCeiled) - 1) / divisor) + 1);
     }
 
     public ISqlResponse execute(BiosQuery query)
@@ -226,7 +241,7 @@ public class BiosClient
             query.setTimeRangeDelta(-1000 * biosConfig.getDefaultTimeRangeDeltaSeconds());
         }
         if (query.getWindowSize() == null) {
-            query.setWindowSize(biosConfig.getDefaultWindowSizeMinutes() * 60 * 1000);
+            query.setWindowSize(biosConfig.getDefaultWindowSizeSeconds() * 1000);
         }
 
         // -- Align time range and delta.
@@ -244,41 +259,81 @@ public class BiosClient
         return dataCache.getUnchecked(query);
     }
 
+    private static Metric.MetricFinalSpecifier[] getAggregateMetrics(BiosAggregate[] aggregates)
+    {
+        List<Metric.MetricFinalSpecifier> metrics = new ArrayList<>();
+        for (var aggregate : aggregates) {
+            switch (aggregate.getAggregateFunction().toLowerCase(Locale.getDefault())) {
+                case "sum":
+                    metrics.add(sum(aggregate.getAggregateSource()));
+                    break;
+                case "min":
+                    metrics.add(min(aggregate.getAggregateSource()));
+                    break;
+                case "max":
+                    metrics.add(max(aggregate.getAggregateSource()));
+                    break;
+                case "count":
+                    metrics.add(count());
+                    break;
+            }
+        }
+
+        return metrics.toArray(Metric.MetricFinalSpecifier[]::new);
+    }
+
     private ISqlResponse executeInternal(BiosQuery query)
     {
         ISqlStatement isqlStatement;
 
-        if (query.getTableKind() == BiosTableKind.CONTEXT) {
-            // Contexts only support listing the primary key attribute directly.
-            // First get all the primary key values, and then issue a second query to get
-            // all the attributes for each of those keys.
+        switch (query.getTableKind()) {
+            case CONTEXT:
+                // Contexts only support listing the primary key attribute directly.
+                // First get all the primary key values, and then issue a second query to get
+                // all the attributes for each of those keys.
 
-            var columns = getColumnHandles(query.getSchemaName(), query.getTableName());
-            String keyColumnName = columns.get(0).getColumnName();
+                var columns = getColumnHandles(query.getSchemaName(), query.getTableName());
+                String keyColumnName = columns.get(0).getColumnName();
 
-            ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
-                    .fromContext(query.getUnderlyingTableName())
-                    .build();
+                ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
+                        .fromContext(query.getUnderlyingTableName())
+                        .build();
 
-            ISqlResponse preliminaryResponse = execute(preliminaryStatement);
-            String[] keyValues = preliminaryResponse.getRecords().stream()
-                    .map(r -> r.getAttribute(keyColumnName).asString())
-                    .toArray(String[]::new);
+                ISqlResponse preliminaryResponse = execute(preliminaryStatement);
+                String[] keyValues = preliminaryResponse.getRecords().stream()
+                        .map(r -> r.getAttribute(keyColumnName).asString())
+                        .toArray(String[]::new);
 
-            isqlStatement = ISqlStatement.select()
-                    .fromContext(query.getUnderlyingTableName())
-                    .where(keys().in((java.lang.Object) keyValues))
-                    .build();
-        }
-        else {
-            var partialStatement = ISqlStatement.select();
-            if (query.getAttributes() != null) {
-                partialStatement = ISqlStatement.select(query.getAttributes());
-            }
-            isqlStatement = partialStatement
-                    .from(query.getUnderlyingTableName())
-                    .timeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
-                    .build();
+                isqlStatement = ISqlStatement.select()
+                        .fromContext(query.getUnderlyingTableName())
+                        .where(keys().in((java.lang.Object) keyValues))
+                        .build();
+                break;
+
+            case SIGNAL:
+                var partialStatement =
+                        ISqlStatement.select(getAggregateMetrics(query.getAggregates()))
+                        .from(query.getUnderlyingTableName());
+                if ((query.getGroupBy() != null) && (query.getGroupBy().length > 0)) {
+                    partialStatement = partialStatement.groupBy(query.getGroupBy());
+                }
+                isqlStatement = partialStatement
+                        .window(tumbling(query.getWindowSize(), TimeUnit.MILLISECONDS))
+                        .snappedTimeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
+                        .build();
+                logger.debug("%d %d %d", query.getWindowSize(), query.getTimeRangeStart(),
+                        query.getTimeRangeDelta());
+                break;
+
+            case RAW_SIGNAL:
+                isqlStatement = ISqlStatement.select()
+                        .from(query.getUnderlyingTableName())
+                        .timeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
+                        .build();
+                break;
+
+            default:
+                return null;
         }
 
         logger.debug("----------> bios network request: statement %s", query);
@@ -421,19 +476,27 @@ public class BiosClient
                 defaultValue = null;
             }
             BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                    defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute);
+                    defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, null, null);
             isFirstAttribute = false;
             columns.add(columnHandle);
         }
-        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false));
-        columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false));
+        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
+                null, null));
+        columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, null, null));
 
         if (schemaName.equals("signal")) {
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_SIZE_MINUTES, BIGINT, null, false));
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false));
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_SIZE_SECONDS, BIGINT, null, false,
+                    null, null));
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false,
+                    null, null));
         }
 
         return columns.build();
+    }
+
+    public boolean isSupportedAggregate(String aggregate)
+    {
+        return aggregates.contains(aggregate.toLowerCase(Locale.getDefault()));
     }
 
     public BiosConfig getBiosConfig()

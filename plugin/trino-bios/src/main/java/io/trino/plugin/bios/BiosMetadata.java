@@ -20,6 +20,7 @@ import io.airlift.log.Logger;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.AggregateFunction;
 import io.trino.spi.connector.AggregationApplicationResult;
+import io.trino.spi.connector.Assignment;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.ConnectorMetadata;
@@ -32,6 +33,8 @@ import io.trino.spi.connector.ConstraintApplicationResult;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
 import io.trino.spi.connector.TableNotFoundException;
+import io.trino.spi.expression.ConnectorExpression;
+import io.trino.spi.expression.Variable;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.EquatableValueSet;
 import io.trino.spi.predicate.SortedRangeSet;
@@ -39,20 +42,21 @@ import io.trino.spi.predicate.TupleDomain;
 
 import javax.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
-import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 public class BiosMetadata
         implements ConnectorMetadata
@@ -109,7 +113,7 @@ public class BiosMetadata
 
         List<ColumnMetadata> columns = columnHandles.stream()
                 .map(BiosColumnHandle::getColumnMetadata)
-                .collect(toList());
+                .collect(Collectors.toUnmodifiableList());
 
         return new ConnectorTableMetadata(schemaTableName, columns);
     }
@@ -192,15 +196,10 @@ public class BiosMetadata
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
         boolean somePushdownApplied = false;
+        Map<ColumnHandle, Domain> remainingDomains = new HashMap<>();
         Long timeRangeStart = null;
         Long timeRangeDelta = null;
         Long windowSize = null;
-        Map<ColumnHandle, Domain> remainingDomains = new HashMap<>();
-
-        logger.debug("applyFilter %s: constraint: %s  %s  %s",
-                tableHandle.toSchemaTableName(),
-                constraint.getSummary().toString(), constraint.predicate().toString(),
-                Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
 
         if (constraint.getSummary().getDomains().isEmpty()) {
             return Optional.empty();
@@ -249,25 +248,26 @@ public class BiosMetadata
                         timeRangeStart = timeRangeLow;
                         timeRangeDelta = timeRangeHigh - timeRangeLow;
                         somePushdownApplied = true;
-                        logger.debug("pushdown: timeRangeStart %d, timeRangeDelta %d", timeRangeStart, timeRangeDelta);
+                        logger.debug("pushdown filter: timeRangeStart %d, timeRangeDelta %d",
+                                timeRangeStart, timeRangeDelta);
                     }
                     break;
 
-                case COLUMN_WINDOW_SIZE_MINUTES:
+                case COLUMN_WINDOW_SIZE_SECONDS:
                     var valueSet = entry.getValue().getValues();
                     if (!(valueSet instanceof EquatableValueSet)) {
-                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_MINUTES +
+                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_SECONDS +
                                 " can only be equated to a specific value.");
                     }
                     var windowSizeValueSet = (EquatableValueSet) valueSet;
                     if (!windowSizeValueSet.isSingleValue()) {
-                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_MINUTES +
+                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_SECONDS +
                                 " can only be equated to a single value.");
                     }
                     // Set the window size.
-                    windowSize = ((Long) windowSizeValueSet.getSingleValue()) * 60 * 1000;
+                    windowSize = ((Long) windowSizeValueSet.getSingleValue()) * 1000;
                     somePushdownApplied = true;
-                    logger.debug("pushdown: windowSize %d", windowSize);
+                    logger.debug("pushdown filter: windowSize %d", windowSize);
                     break;
 
                 default:
@@ -278,11 +278,16 @@ public class BiosMetadata
         }
 
         if (somePushdownApplied) {
+            logger.debug("applyFilter %s:  constraint: %s  PredicateColumns: %s",
+                    tableHandle.toSchemaTableName(),
+                    constraint.getSummary().toString(),
+                    Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
+
             TupleDomain<ColumnHandle> remainingFilter = withColumnDomains(remainingDomains);
             return Optional.of(
                     new ConstraintApplicationResult<>(
                             new BiosTableHandle(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                                    timeRangeStart, timeRangeDelta, windowSize),
+                                    timeRangeStart, timeRangeDelta, windowSize, tableHandle.getGroupBy()),
                             remainingFilter,
                             false));
         }
@@ -300,8 +305,62 @@ public class BiosMetadata
             List<List<ColumnHandle>> groupingSets)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
-        logger.debug("applyAggregation %s: aggregates: %s  %s  %s",
+        logger.debug("applyAggregation %s: aggregates: %s  assignments: %s  groupingSets:%s",
                 tableHandle.toSchemaTableName(), aggregates, assignments, groupingSets);
-        return Optional.empty();
+
+        if (tableHandle.getTableKind() != BiosTableKind.SIGNAL) {
+            return Optional.empty();
+        }
+
+        // Group by has already been applied once, cannot aggregate again.
+        if (tableHandle.getGroupBy() != null) {
+            return Optional.empty();
+        }
+
+        // Not sure how to handle multiple grouping sets.
+        if (groupingSets.size() >= 2) {
+            return Optional.empty();
+        }
+
+        List<ConnectorExpression> outProjections = new ArrayList<>();
+        List<Assignment> outAssignments = new ArrayList<>();
+        List<String> internalAggregateNames = new ArrayList<>();
+        for (var aggregate : aggregates) {
+            if (!biosClient.isSupportedAggregate(aggregate.getFunctionName())) {
+                return Optional.empty();
+            }
+            if (aggregate.getInputs().size() != 1) {
+                throw new TrinoException(GENERIC_USER_ERROR, aggregate.getFunctionName() +
+                        " requires exactly 1 input, got " +
+                        String.valueOf(aggregate.getInputs().size()));
+            }
+            var input = (Variable) aggregate.getInputs().get(0);
+            String name = aggregate.getFunctionName() + "(" + input.getName() + ")";
+            outProjections.add(new Variable(name, aggregate.getOutputType()));
+            outAssignments.add(new Assignment(name,
+                    new BiosColumnHandle(name, aggregate.getOutputType(), null, false,
+                            aggregate.getFunctionName(), input.getName()),
+                    aggregate.getOutputType()));
+            internalAggregateNames.add(name);
+        }
+
+        String[] groupBy = null;
+        if (groupingSets.size() > 0) {
+            groupBy = groupingSets.get(0).stream()
+                    .filter(ch -> !(((BiosColumnHandle) ch).getIsVirtual()))
+                    .map(ch -> ((BiosColumnHandle) ch).getColumnName())
+                    .toArray(String[]::new);
+        }
+        var outTableHandle = new BiosTableHandle(tableHandle.getSchemaName(),
+                tableHandle.getTableName(),
+                tableHandle.getTimeRangeStart(), tableHandle.timeRangeDelta,
+                tableHandle.getWindowSize(), groupBy);
+
+        logger.debug("pushdown aggregates: %s,  groupBy: %s", internalAggregateNames,
+                Arrays.toString(groupBy));
+
+        var outResult = new AggregationApplicationResult<ConnectorTableHandle>(outTableHandle,
+                outProjections, outAssignments, new HashMap<>(), false);
+        return Optional.of(outResult);
     }
 }

@@ -29,7 +29,7 @@ public class BiosConfig
     private Long dataAlignmentSeconds;
     private Long dataCacheSizeInRows;
     private Long defaultTimeRangeDeltaSeconds;
-    private Long defaultWindowSizeMinutes;
+    private Long defaultWindowSizeSeconds;
 
     public URI getUrl()
     {
@@ -129,15 +129,15 @@ public class BiosConfig
         return this;
     }
 
-    public Long getDefaultWindowSizeMinutes()
+    public Long getDefaultWindowSizeSeconds()
     {
-        return defaultWindowSizeMinutes != null ? defaultWindowSizeMinutes : 300L;
+        return defaultWindowSizeSeconds != null ? defaultWindowSizeSeconds : 300L;
     }
 
-    @Config("bios.defaultWindowSizeMinutes")
-    public BiosConfig setDefaultWindowSizeMinutes(Long defaultWindowSizeMinutes)
+    @Config("bios.defaultWindowSizeSeconds")
+    public BiosConfig setDefaultWindowSizeSeconds(Long defaultWindowSizeSeconds)
     {
-        this.defaultWindowSizeMinutes = defaultWindowSizeMinutes;
+        this.defaultWindowSizeSeconds = defaultWindowSizeSeconds;
         return this;
     }
 }

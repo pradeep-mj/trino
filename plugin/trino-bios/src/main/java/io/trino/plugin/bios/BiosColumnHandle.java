@@ -15,6 +15,7 @@ package io.trino.plugin.bios;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.airlift.log.Logger;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.type.Type;
@@ -29,22 +30,30 @@ import static java.util.Objects.requireNonNull;
 public final class BiosColumnHandle
         implements ColumnHandle
 {
+    private static final Logger logger = Logger.get(BiosColumnHandle.class);
+
     private final String columnName;
     private final Type columnType;
     private final String defaultValue;
     private final boolean isKey;
+    private final String aggregateFunction;
+    private final String aggregateSource;
 
     @JsonCreator
     public BiosColumnHandle(
             @JsonProperty("columnName") String columnName,
             @JsonProperty("columnType") Type columnType,
             @JsonProperty("defaultValue") String defaultValue,
-            @JsonProperty("isKey") boolean isKey)
+            @JsonProperty("isKey") boolean isKey,
+            @JsonProperty("aggregateFunction") String aggregateFunction,
+            @JsonProperty("aggregateSource") String aggregateSource)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
         this.defaultValue = defaultValue;
         this.isKey = isKey;
+        this.aggregateFunction = aggregateFunction;
+        this.aggregateSource = aggregateSource;
     }
 
     @JsonProperty
@@ -60,12 +69,34 @@ public final class BiosColumnHandle
     }
 
     @JsonProperty
+    public String getDefaultValue()
+    {
+        return defaultValue;
+    }
+
+    @JsonProperty
     public boolean getIsKey()
     {
         return isKey;
     }
 
     @JsonProperty
+    public String getAggregateFunction()
+    {
+        return aggregateFunction;
+    }
+
+    @JsonProperty
+    public String getAggregateSource()
+    {
+        return aggregateSource;
+    }
+
+    public boolean getIsAggregate()
+    {
+        return (aggregateFunction != null);
+    }
+
     public boolean getIsVirtual()
     {
         return columnName.startsWith(VIRTUAL_PREFIX);
@@ -90,13 +121,18 @@ public final class BiosColumnHandle
             builder.setComment(Optional.of("virtual column"));
         }
 
+        if (getIsAggregate()) {
+            logger.debug("getColumnMetadata called for aggregate %s", columnName);
+        }
+
         return builder.build();
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnName, columnType, defaultValue, isKey);
+        return Objects.hash(columnName, columnType, defaultValue, isKey, aggregateFunction,
+                aggregateSource);
     }
 
     @Override
@@ -113,7 +149,9 @@ public final class BiosColumnHandle
         return Objects.equals(this.columnName, other.columnName) &&
                 Objects.equals(this.columnType, other.columnType) &&
                 Objects.equals(this.defaultValue, other.defaultValue) &&
-                this.isKey == other.isKey;
+                this.isKey == other.isKey &&
+                Objects.equals(this.aggregateFunction, other.aggregateFunction) &&
+                Objects.equals(this.aggregateSource, other.aggregateSource);
     }
 
     @Override
@@ -124,6 +162,8 @@ public final class BiosColumnHandle
                 .add("columnType", columnType)
                 .add("defaultValue", defaultValue)
                 .add("isKey", isKey)
+                .add("aggregateFunction", aggregateFunction)
+                .add("aggregateSource", aggregateSource)
                 .omitNullValues()
                 .toString();
     }

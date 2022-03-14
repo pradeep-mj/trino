@@ -25,6 +25,7 @@ public final class BiosQuery
         extends BiosTableHandle
 {
     private String[] attributes;
+    private BiosAggregate[] aggregates;
 
     @JsonCreator
     public BiosQuery(
@@ -33,10 +34,13 @@ public final class BiosQuery
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta,
             @JsonProperty("windowSize") Long windowSize,
-            @JsonProperty("attributes") String[] attributes)
+            @JsonProperty("windowSize") String[] groupBy,
+            @JsonProperty("attributes") String[] attributes,
+            @JsonProperty("aggregates") BiosAggregate[] aggregates)
     {
-        super(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize);
+        super(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize, groupBy);
         this.attributes = attributes;
+        this.aggregates = aggregates;
     }
 
     public String getUnderlyingTableName()
@@ -60,10 +64,17 @@ public final class BiosQuery
         this.attributes = attributes;
     }
 
+    @JsonProperty
+    public BiosAggregate[] getAggregates()
+    {
+        return aggregates;
+    }
+
     @Override
     public int hashCode()
     {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(attributes));
+        return Objects.hash(super.hashCode(), Arrays.hashCode(attributes),
+                Arrays.hashCode(aggregates));
     }
 
     @Override
@@ -80,7 +91,8 @@ public final class BiosQuery
         }
 
         BiosQuery other = (BiosQuery) obj;
-        return Arrays.equals(this.attributes, other.attributes);
+        return Arrays.equals(this.attributes, other.attributes) &&
+                Arrays.equals(this.aggregates, other.aggregates);
     }
 
     @Override
@@ -89,6 +101,7 @@ public final class BiosQuery
         return toStringHelper(this)
                 .add("super", super.toString())
                 .add("attributes", Arrays.toString(attributes))
+                .add("aggregates", Arrays.toString(aggregates))
                 .omitNullValues()
                 .toString();
     }

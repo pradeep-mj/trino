@@ -57,7 +57,8 @@ interface ConnectorMetadata <<Trino>> {
     listTableColumns ()
     getColumnMetadata ()
     getTableProperties ()
-    applyFilter ()
+    ** applyFilter () **
+    ** applyAggregation () **
 }
 
 class BiosMetadata <<Singleton>> <<Major>> implements ConnectorMetadata {
@@ -112,22 +113,24 @@ interface RecordSet <<Trino>> {
 }
 
 class BiosRecordSet implements RecordSet {
-    + Cons (biosSplit, columnHandles)
+    + Cons (client, tableHandle, columnHandles)
 }
 
 interface RecordCursor <<Trino>> {
     getType (int field)
     getBoolean (int field)
-    get... (int field)
+    ** getLong (int field) **
+    getDouble (int field)
+    getSlice (int field)
     isNull (int field)
-    advanceNextPosition ()
+    ** advanceNextPosition () **
     close ()
     getCompletedBytes ()
     getReadTimeNanos ()
 }
 
 class BiosRecordCursor <<Major>> implements RecordCursor {
-    + Cons (client, statement, columnHandles)
+    + Cons (client, tableHandle, columnHandles)
     - biosclient
     - statement
     - columnHandles
@@ -137,14 +140,15 @@ class BiosRecordCursor <<Major>> implements RecordCursor {
 
 
 class BiosClient <<Singleton>> <<Major>> {
-    # @Inject Cons (BiosConfig)
+    # ** @Inject Cons (BiosConfig) **
     - biosConfig
     - session
     + getSchemaNames ()
-    + getTableNames (String schema)
+    + ** getTableNames (String schema) **
     + getTableHandle (schema, tableName)
-    + getColumnHandles (schema, tableName)
-    + execute(statement)
+    + ** getColumnHandles (schema, tableName) **
+    + ** execute(query) **
+    + isSupportedAggregate(String aggregate)
 }
 
 class BiosConfig << (P, orange) >> {
@@ -156,7 +160,7 @@ class BiosConfig << (P, orange) >> {
     + Long dataAlignmentSeconds;
     + Long dataCacheSizeInRows;
     + Long defaultTimeRangeDeltaSeconds;
-    + Long defaultWindowSizeMinutes;
+    + Long defaultWindowSizeSeconds;
 }
 
 interface ColumnHandle <<Trino>> {
@@ -188,15 +192,23 @@ class BiosTableHandle << (J, orangeRed) >> implements ConnectorTableHandle {
     - String tableName
     - Long timeRangeStart
     - Long timeRangeDelta
+    - Long windowSize
     + toSchemaTableName ()
     + getTableKind ()
+}
+
+class BiosAggregate << (J, orangeRed) >> {
+   + Cons (...)
+   - String aggregateFunction
+   - String aggregateSource
 }
 
 class BiosQuery << (J, orangeRed) >> {
     + Cons (...)
     - String[] attributes
+    - BiosAggregate[] aggregates
 }
-
+BiosQuery -> BiosAggregate
 BiosTableHandle <|- BiosQuery
 
 

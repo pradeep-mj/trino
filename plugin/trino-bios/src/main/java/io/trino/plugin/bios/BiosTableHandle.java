@@ -33,6 +33,7 @@ public class BiosTableHandle
     protected Long timeRangeStart;
     protected Long timeRangeDelta;
     protected Long windowSize;
+    protected String[] groupBy;
 
     @JsonCreator
     public BiosTableHandle(
@@ -40,13 +41,15 @@ public class BiosTableHandle
             @JsonProperty("tableName") String tableName,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta,
-            @JsonProperty("windowSize") Long windowSize)
+            @JsonProperty("windowSize") Long windowSize,
+            @JsonProperty("groupBy") String[] groupBy)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.timeRangeStart = timeRangeStart;
         this.timeRangeDelta = timeRangeDelta;
         this.windowSize = windowSize;
+        this.groupBy = groupBy;
     }
 
     public BiosTableHandle(
@@ -55,9 +58,6 @@ public class BiosTableHandle
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
-        this.timeRangeStart = null;
-        this.timeRangeDelta = null;
-        this.windowSize = null;
     }
 
     @JsonProperty
@@ -103,6 +103,12 @@ public class BiosTableHandle
     public void setWindowSize(Long windowSize)
     {
         this.windowSize = windowSize;
+    }
+
+    @JsonProperty
+    public String[] getGroupBy()
+    {
+        return groupBy;
     }
 
     public BiosTableKind getTableKind()

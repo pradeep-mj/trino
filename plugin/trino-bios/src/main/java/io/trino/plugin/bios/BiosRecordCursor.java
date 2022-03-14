@@ -33,7 +33,7 @@ import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
-import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
@@ -97,12 +97,18 @@ public class BiosRecordCursor
 
             String[] attributes = columnHandles.stream()
                     .filter(ch -> !ch.getIsVirtual())
+                    .filter(ch -> !ch.getIsAggregate())
                     .map(BiosColumnHandle::getColumnName)
                     .toArray(String[]::new);
+            BiosAggregate[] aggregates = columnHandles.stream()
+                    .filter(ch -> !ch.getIsVirtual())
+                    .filter(BiosColumnHandle::getIsAggregate)
+                    .map(ch -> new BiosAggregate(ch.getAggregateFunction(), ch.getAggregateSource()))
+                    .toArray(BiosAggregate[]::new);
 
             BiosQuery query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
                     tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta(),
-                    tableHandle.getWindowSize(), attributes);
+                    tableHandle.getWindowSize(), tableHandle.getGroupBy(), attributes, aggregates);
             ISqlResponse response = biosClient.execute(query);
 
             if (isWindowed()) {
@@ -186,8 +192,8 @@ public class BiosRecordCursor
                 checkFieldType(field, BIGINT);
                 return currentRecord.getTimestamp();
 
-            case COLUMN_WINDOW_SIZE_MINUTES:
-                throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_MINUTES +
+            case COLUMN_WINDOW_SIZE_SECONDS:
+                throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_SECONDS +
                         " can only be used in the where clause.");
 
             case COLUMN_WINDOW_BEGIN_EPOCH:
