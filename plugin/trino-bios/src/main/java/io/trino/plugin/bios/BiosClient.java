@@ -267,10 +267,20 @@ public class BiosClient
         query.setTimeRangeDelta(ceiling(query.getTimeRangeDelta(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
 
-        // -- For raw signals, get all attributes so that we don't have many queries with different
-        //      subsets of attributes.
-        if (query.getTableKind() == BiosTableKind.RAW_SIGNAL) {
-            query.setAttributes(null);
+        switch (query.getTableKind()) {
+            case RAW_SIGNAL:
+                // -- For raw signals, get all attributes so that we don't have many queries with
+                //      different subsets of attributes.
+                query.setAttributes(null);
+                break;
+
+            case SIGNAL:
+                // -- Ensure main signals are only used for aggregated results, not raw rows.
+                if ((query.getAggregates() == null) || (query.getAggregates().length == 0)) {
+                    throw new TrinoException(GENERIC_USER_ERROR, "No aggregate found in query; "
+                            + "use raw signals for non-aggregated queries.");
+                }
+                break;
         }
 
         return dataCache.getUnchecked(query);
@@ -293,6 +303,9 @@ public class BiosClient
                 case "count":
                     metrics.add(count());
                     break;
+                default:
+                    throw new TrinoException(GENERIC_USER_ERROR, "Aggregate " + aggregate.getAggregateFunction() +
+                            " is not yet supported on this table; use raw signal instead.");
             }
         }
 

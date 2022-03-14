@@ -307,9 +307,6 @@ public class BiosMetadata
             List<List<ColumnHandle>> groupingSets)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
-        logger.debug("applyAggregation %s: aggregates: %s  assignments: %s  groupingSets:%s",
-                tableHandle.toSchemaTableName(), aggregates, assignments, groupingSets);
-
         if (tableHandle.getTableKind() != BiosTableKind.SIGNAL) {
             return Optional.empty();
         }
@@ -323,6 +320,9 @@ public class BiosMetadata
         if (groupingSets.size() >= 2) {
             return Optional.empty();
         }
+
+        logger.debug("applyAggregation %s: aggregates: %s  assignments: %s  groupingSets:%s",
+                tableHandle.toSchemaTableName(), aggregates, assignments, groupingSets);
 
         List<ConnectorExpression> outProjections = new ArrayList<>();
         List<Assignment> outAssignments = new ArrayList<>();
