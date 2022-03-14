@@ -55,8 +55,8 @@ import static io.isima.bios.models.isql.Metric.min;
 import static io.isima.bios.models.isql.Metric.sum;
 import static io.isima.bios.models.isql.WhereClause.keys;
 import static io.isima.bios.models.isql.Window.tumbling;
-import static io.isima.bios.sdk.errors.BiosClientError.SESSION_EXPIRED;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
+import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -140,33 +140,42 @@ public class BiosClient
                     });
         // Execute one query to initialize bios SDK metrics.
         execute(new BiosQuery("raw_signal", addRawSuffix("_requests"),
-                System.currentTimeMillis(), -60000L, null, null, null, null));
+                System.currentTimeMillis(), -35000L, null, null, null, null));
     }
 
     /**
-     * This method always throws a RuntimeException.
-     * For some input exceptions it may do some additional handling before throwing the exception.
-     * Calling code can assume that an exception will be thrown after this method is called,
-     * e.g. for accessing variables initialized inside a try/catch block.
+     * This method does one of the following:
+     * 1. If doNotThrowIfRetryable is true and the exception indicates that the operation is
+     * retryable, returns normally after reestablishing a new session.
+     * 2. If doNotThrowIfRetryable is false, or if the exception does not look retryable, throws:
+     *      a) TrinoException for known/handled exceptions, or
+     *      b) RuntimeException for unhandled exceptions.
      */
-    private void handleException(Exception e)
+    private void handleException(Throwable t, boolean doNotThrowIfRetryable)
     {
-        logger.debug("bi(OS) got exception: %s", e.toString());
-        if (e instanceof BiosClientException) {
-            BiosClientException biosClientException = (BiosClientException) e;
-            if (biosClientException.getCode().equals(SESSION_EXPIRED)) {
-                logger.debug("Session expired: \n\n Attempting to create a new session...");
-                session = Suppliers.memoize(sessionSupplier(biosConfig));
-                session.get();
-                throw new TrinoException(GENERIC_INTERNAL_ERROR, "bi(OS) session expired and "
-                        + "has been reestablished; please retry the query.");
-            }
-            else {
-                throw new RuntimeException(biosClientException);
+        if (t instanceof BiosClientException) {
+            BiosClientException biosClientException = (BiosClientException) t;
+            switch (biosClientException.getCode()) {
+                case BAD_INPUT:
+                    throw new TrinoException(GENERIC_USER_ERROR, biosClientException.getMessage());
+
+                case SESSION_EXPIRED:
+                    if (doNotThrowIfRetryable) {
+                        logger.debug("Session expired: \n\n Attempting to create a new session...");
+                        session = Suppliers.memoize(sessionSupplier(biosConfig));
+                        session.get();
+                        return;
+                    }
+                    // Fallthrough to default.
+
+                default:
+                    logger.debug("bi(OS) got exception: %s", t);
+                    throw new RuntimeException(biosClientException);
             }
         }
         else {
-            throw new RuntimeException(e.toString());
+            logger.debug("bi(OS) got exception: %s", t);
+            throw new RuntimeException(t);
         }
     }
 
@@ -175,10 +184,9 @@ public class BiosClient
         return () -> {
             Session session;
             try {
-                logger.debug("sessionSupplier: %s (%s), %s, %s", biosConfig.getUrl().toString(),
+                logger.debug("sessionSupplier: %s (%s), %s", biosConfig.getUrl().toString(),
                         biosConfig.getUrl().getHost(),
-                        biosConfig.getEmail(),
-                        biosConfig.getPassword());
+                        biosConfig.getEmail());
                 session = Bios.newSession(biosConfig.getUrl().getHost(), 443)
                         .user(biosConfig.getEmail())
                         .password(biosConfig.getPassword())
@@ -189,7 +197,7 @@ public class BiosClient
             }
             catch (BiosClientException e) {
                 // Cannot call handleException() here because it may cause recursion.
-                throw new RuntimeException(e.toString());
+                throw new RuntimeException(e);
             }
         };
     }
@@ -203,8 +211,17 @@ public class BiosClient
                 tenantConfig = client.getSession().getTenant(true, true);
             }
             catch (BiosClientException e) {
-                client.handleException(e);
+                client.handleException(e, true);
+                // If handleException did not throw an exception, it means we can retry.
+                try {
+                    logger.debug("retrying ----------> bios network request: getTenant");
+                    tenantConfig = client.getSession().getTenant(true, true);
+                }
+                catch (BiosClientException e2) {
+                    client.handleException(e2, false);
+                }
             }
+
             logger.debug("<---------- bios network response: getTenant %s returned %d signals, %d "
                             + "contexts",
                     tenantConfig.getName(), tenantConfig.getSignals().size(),
@@ -299,7 +316,7 @@ public class BiosClient
                         .fromContext(query.getUnderlyingTableName())
                         .build();
 
-                ISqlResponse preliminaryResponse = execute(preliminaryStatement);
+                ISqlResponse preliminaryResponse = executeStatement(preliminaryStatement);
                 String[] keyValues = preliminaryResponse.getRecords().stream()
                         .map(r -> r.getAttribute(keyColumnName).asString())
                         .toArray(String[]::new);
@@ -337,7 +354,7 @@ public class BiosClient
         }
 
         logger.debug("----------> bios network request: statement %s", query);
-        ISqlResponse response = execute(isqlStatement);
+        ISqlResponse response = executeStatement(isqlStatement);
         long firstWindowRecords = 0;
         if (response.getDataWindows().size() > 0) {
             firstWindowRecords = response.getDataWindows().get(0).getRecords().size();
@@ -349,14 +366,22 @@ public class BiosClient
         return response;
     }
 
-    private ISqlResponse execute(ISqlStatement statement)
+    private ISqlResponse executeStatement(ISqlStatement statement)
     {
         ISqlResponse response = null;
         try {
             response = session.get().execute(statement);
         }
         catch (BiosClientException e) {
-            handleException(e);
+            handleException(e, true);
+            // If handleException did not throw an exception, it means we can retry.
+            try {
+                logger.debug("retrying ----------> bios network request: statement");
+                response = session.get().execute(statement);
+            }
+            catch (BiosClientException e2) {
+                handleException(e2, false);
+            }
         }
         return response;
     }

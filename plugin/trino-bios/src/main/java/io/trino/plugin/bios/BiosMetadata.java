@@ -84,6 +84,7 @@ public class BiosMetadata
     {
         logger.debug("getTableHandle");
         if (!listSchemaNames(session).contains(tableName.getSchemaName())) {
+            logger.debug("getTableHandle - returning null because schema was not found.");
             return null;
         }
 
@@ -102,6 +103,7 @@ public class BiosMetadata
     {
         // logger.debug("getTableMetadata");
         if (!listSchemaNames(session).contains(schemaTableName.getSchemaName())) {
+            logger.debug("getTableMetadata called for non-existent schema; returning null.");
             return null;
         }
 
