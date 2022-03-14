@@ -139,8 +139,8 @@ public class BiosClient
                         }
                     });
         // Execute one query to initialize bios SDK metrics.
-        execute(new BiosQuery("raw_signal", addRawSuffix("_requests"),
-                System.currentTimeMillis(), -35000L, null, null, null, null));
+        execute(new BiosQuery("signal", "_requests", System.currentTimeMillis(), -300000L, 300000L,
+                null, null, new BiosAggregate[]{new BiosAggregate("count", null)}));
     }
 
     /**

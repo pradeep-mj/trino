@@ -34,7 +34,7 @@ public final class BiosQuery
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta,
             @JsonProperty("windowSize") Long windowSize,
-            @JsonProperty("windowSize") String[] groupBy,
+            @JsonProperty("groupBy") String[] groupBy,
             @JsonProperty("attributes") String[] attributes,
             @JsonProperty("aggregates") BiosAggregate[] aggregates)
     {

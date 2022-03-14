@@ -19,6 +19,7 @@ import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.SchemaTableName;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -134,7 +135,8 @@ public class BiosTableHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize);
+        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize,
+                Arrays.hashCode(groupBy));
     }
 
     @Override
@@ -152,7 +154,8 @@ public class BiosTableHandle
                 Objects.equals(this.tableName, other.tableName) &&
                 Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
                 Objects.equals(this.timeRangeDelta, other.timeRangeDelta) &&
-                Objects.equals(this.windowSize, other.windowSize);
+                Objects.equals(this.windowSize, other.windowSize) &&
+                Arrays.equals(this.groupBy, other.groupBy);
     }
 
     @Override
@@ -164,6 +167,7 @@ public class BiosTableHandle
                 .add("timeRangeStart", timeRangeStart)
                 .add("timeRangeDelta", timeRangeDelta)
                 .add("windowSize", windowSize)
+                .add("groupBy", Arrays.toString(groupBy))
                 .omitNullValues()
                 .toString();
     }
