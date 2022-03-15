@@ -252,7 +252,7 @@ public class BiosClient
 
         // -- Set defaults for parameters not already set.
         if (query.getTimeRangeStart() == null) {
-            query.setTimeRangeStart(System.currentTimeMillis());
+            query.setTimeRangeStart(System.currentTimeMillis() - biosConfig.getDefaultFeatureLagSeconds() * 1000);
         }
         if (query.getTimeRangeDelta() == null) {
             query.setTimeRangeDelta(-1000 * biosConfig.getDefaultTimeRangeDeltaSeconds());
@@ -277,8 +277,8 @@ public class BiosClient
             case SIGNAL:
                 // -- Ensure main signals are only used for aggregated results, not raw rows.
                 if ((query.getAggregates() == null) || (query.getAggregates().length == 0)) {
-                    throw new TrinoException(GENERIC_USER_ERROR, "No aggregate found in query; "
-                            + "use raw signals for non-aggregated queries.");
+                    throw new TrinoException(GENERIC_USER_ERROR, "Query has no aggregate or has "
+                            + "unsupported complex transformation; use raw signals for such queries.");
                 }
                 break;
         }

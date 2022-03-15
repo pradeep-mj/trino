@@ -30,6 +30,7 @@ public class BiosConfig
     private Long dataCacheSizeInRows;
     private Long defaultTimeRangeDeltaSeconds;
     private Long defaultWindowSizeSeconds;
+    private Long defaultFeatureLagSeconds;
 
     public URI getUrl()
     {
@@ -138,6 +139,18 @@ public class BiosConfig
     public BiosConfig setDefaultWindowSizeSeconds(Long defaultWindowSizeSeconds)
     {
         this.defaultWindowSizeSeconds = defaultWindowSizeSeconds;
+        return this;
+    }
+
+    public Long getDefaultFeatureLagSeconds()
+    {
+        return defaultFeatureLagSeconds != null ? defaultFeatureLagSeconds : 40L;
+    }
+
+    @Config("bios.defaultFeatureLagSeconds")
+    public BiosConfig setDefaultFeatureLagSeconds(Long defaultFeatureLagSeconds)
+    {
+        this.defaultFeatureLagSeconds = defaultFeatureLagSeconds;
         return this;
     }
 }
