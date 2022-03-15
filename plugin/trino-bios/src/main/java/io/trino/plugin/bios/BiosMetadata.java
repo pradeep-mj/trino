@@ -30,9 +30,13 @@ import io.trino.spi.connector.ConnectorTableMetadata;
 import io.trino.spi.connector.ConnectorTableProperties;
 import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.ConstraintApplicationResult;
+import io.trino.spi.connector.LimitApplicationResult;
+import io.trino.spi.connector.ProjectionApplicationResult;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.SchemaTablePrefix;
+import io.trino.spi.connector.SortItem;
 import io.trino.spi.connector.TableNotFoundException;
+import io.trino.spi.connector.TopNApplicationResult;
 import io.trino.spi.expression.ConnectorExpression;
 import io.trino.spi.expression.Variable;
 import io.trino.spi.predicate.Domain;
@@ -53,6 +57,7 @@ import java.util.stream.Collectors;
 
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
@@ -212,15 +217,21 @@ public class BiosMetadata
             switch (columnName) {
                 case COLUMN_SIGNAL_TIMESTAMP:
                 case COLUMN_SIGNAL_TIME_EPOCH_MS:
+                case COLUMN_WINDOW_BEGIN_EPOCH:
                     // If we have not already set the time range, pushdown time range.
                     if ((timeRangeStart == null)) {
                         long timeRangeLow;
                         long timeRangeHigh;
-                        // Trino uses microseconds since epoch for timestamps, whereas bios v1 uses
-                        // milliseconds.
-                        long scalingFactor = 1;
-                        if (columnName.equals(COLUMN_SIGNAL_TIMESTAMP)) {
-                            scalingFactor = 1000;
+                        double scalingFactor = 1;   // To convert to milliseconds.
+                        switch (columnName) {
+                            case COLUMN_SIGNAL_TIMESTAMP:
+                                // Trino uses microseconds since epoch for timestamps, whereas
+                                // bios v1 uses milliseconds.
+                                scalingFactor = 1.0 / 1000;
+                                break;
+                            case COLUMN_WINDOW_BEGIN_EPOCH:
+                                scalingFactor = 1000;
+                                break;
                         }
 
                         // Currently, we only support pushdown of single range predicates on signal timestamp.
@@ -234,15 +245,17 @@ public class BiosMetadata
                         }
                         var range = sortedRangeSet.getOrderedRanges().get(0);
                         if (range.getLowValue().isPresent()) {
-                            timeRangeLow = (Long) range.getLowValue().get() / scalingFactor;
-                            logger.debug("timeRangeLow provided: %d", timeRangeLow);
+                            timeRangeLow =
+                                    (long) ((Long) range.getLowValue().get() * scalingFactor);
+                            // logger.debug("timeRangeLow provided: %d", timeRangeLow);
                         }
                         else {
                             timeRangeLow = 0L;
                         }
                         if (range.getHighValue().isPresent()) {
-                            timeRangeHigh = (Long) range.getHighValue().get() / scalingFactor;
-                            logger.debug("timeRangeHigh provided: %d", timeRangeHigh);
+                            timeRangeHigh =
+                                    (long) ((Long) range.getHighValue().get() * scalingFactor);
+                            // logger.debug("timeRangeHigh provided: %d", timeRangeHigh);
                         }
                         else {
                             timeRangeHigh = System.currentTimeMillis();
@@ -364,5 +377,39 @@ public class BiosMetadata
         var outResult = new AggregationApplicationResult<ConnectorTableHandle>(outTableHandle,
                 outProjections, outAssignments, new HashMap<>(), false);
         return Optional.of(outResult);
+    }
+
+    @Override
+    public Optional<ProjectionApplicationResult<ConnectorTableHandle>> applyProjection(ConnectorSession session, ConnectorTableHandle handle, List<ConnectorExpression> projections, Map<String, ColumnHandle> assignments)
+    {
+        BiosTableHandle tableHandle = (BiosTableHandle) handle;
+        // logger.debug("applyProjection %s: projections: %s  assignments: %s",
+        //         tableHandle, projections, assignments);
+
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<LimitApplicationResult<ConnectorTableHandle>> applyLimit(ConnectorSession session, ConnectorTableHandle handle, long limit)
+    {
+        BiosTableHandle tableHandle = (BiosTableHandle) handle;
+        logger.debug("applyLimit %s: limit: %d", tableHandle, limit);
+
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TopNApplicationResult<ConnectorTableHandle>> applyTopN(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            long topNCount,
+            List<SortItem> sortItems,
+            Map<String, ColumnHandle> assignments)
+    {
+        BiosTableHandle tableHandle = (BiosTableHandle) handle;
+        logger.debug("applyTopN %s: topNCount: %d  sortItems: %s  assignments: %s",
+                tableHandle, topNCount, sortItems, assignments);
+
+        return Optional.empty();
     }
 }
