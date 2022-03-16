@@ -26,15 +26,20 @@ import io.trino.spi.type.Type;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIME_EPOCH_MS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_WINDOW_SIZE_SECONDS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_TIMESTAMP;
-import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
+import static io.trino.plugin.bios.BiosClient.MAX_WINDOW_BEGIN_EPOCH;
+import static io.trino.plugin.bios.BiosClient.MAX_WINDOW_BEGIN_TIMESTAMP;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
@@ -175,7 +180,7 @@ public class BiosRecordCursor
     {
         String columnName = columnHandles.get(field).getColumnName();
 
-        switch (columnName) {
+        switch (columnName.toLowerCase(Locale.getDefault())) {
             case COLUMN_SIGNAL_TIMESTAMP:
             case COLUMN_CONTEXT_TIMESTAMP:
                 // bios v1 uses milliseconds since epoch, but Trino uses
@@ -187,11 +192,8 @@ public class BiosRecordCursor
                 checkFieldType(field, BIGINT);
                 return currentRecord.getTimestamp();
 
-            case COLUMN_WINDOW_SIZE_SECONDS:
-                throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_SECONDS +
-                        " can only be used in the where clause.");
-
             case COLUMN_WINDOW_BEGIN_EPOCH:
+            case MAX_WINDOW_BEGIN_EPOCH:
                 if (!isWindowed()) {
                     throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_EPOCH +
                             " can only be used for a windowed query.");
@@ -200,6 +202,7 @@ public class BiosRecordCursor
                 return currentWindow.getWindowBeginTime() / 1000;
 
             case COLUMN_WINDOW_BEGIN_TIMESTAMP:
+            case MAX_WINDOW_BEGIN_TIMESTAMP:
                 if (!isWindowed()) {
                     throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_TIMESTAMP +
                             " can only be used for a windowed query.");
@@ -207,6 +210,12 @@ public class BiosRecordCursor
                 // bios v1 uses milliseconds since epoch, but Trino uses
                 // microseconds since epoch for timestamps; convert to micros.
                 return currentWindow.getWindowBeginTime() * 1000;
+
+            case COLUMN_PARAM_WINDOW_SIZE_SECONDS:
+            case COLUMN_PARAM_QUERY_PERIOD_MINUTES:
+            case COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES:
+                throw new TrinoException(GENERIC_USER_ERROR, columnName +
+                        " can only be used in the where clause.");
 
             default:
                 checkFieldType(field, BIGINT);
@@ -236,8 +245,8 @@ public class BiosRecordCursor
             return Slices.EMPTY_SLICE;
         }
         else {
-            checkArgument(false, "Expected field %s to be type VARCHAR or VARBINARY, but is %s",
-                    field, type);
+            checkArgument(false, "Expected field %s (%s) to be type VARCHAR or VARBINARY, but is %s",
+                    field, columnHandles.get(field).getColumnName(), type);
             return null;
         }
     }
@@ -258,7 +267,8 @@ public class BiosRecordCursor
     private void checkFieldType(int field, Type expected)
     {
         Type actual = getType(field);
-        checkArgument(actual.equals(expected), "Expected field %s to be type %s but is %s", field, expected, actual);
+        checkArgument(actual.equals(expected), "Expected field %s (%s) to be type %s but is %s",
+                field, columnHandles.get(field).getColumnName(), expected, actual);
     }
 
     @Override

@@ -69,18 +69,21 @@ public class BiosClient
 {
     public static final String RAW_SIGNAL_TABLE_NAME_SUFFIX = "_raw";
     public static final String VIRTUAL_PREFIX = "__";
+    public static final String PARAMETER_PREFIX = VIRTUAL_PREFIX + "param_";
 
-    public static final String COLUMN_SIGNAL_TIMESTAMP = VIRTUAL_PREFIX + "eventTimestamp";
-    public static final String COLUMN_CONTEXT_TIMESTAMP = VIRTUAL_PREFIX + "upsertTimestamp";
-    public static final String COLUMN_SIGNAL_TIME_EPOCH_MS = VIRTUAL_PREFIX + "eventTimeEpochMs";
-    public static final String COLUMN_CONTEXT_TIME_EPOCH_MS = VIRTUAL_PREFIX + "upsertTimeEpochMs";
-    public static final String COLUMN_WINDOW_SIZE_SECONDS = VIRTUAL_PREFIX + "windowSizeSeconds";
-    public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "windowBeginEpoch";
-    public static final String COLUMN_WINDOW_BEGIN_TIMESTAMP = VIRTUAL_PREFIX +
-            "windowBeginTimestamp";
-    public static final String COLUMN_QUERY_PERIOD_MINUTES = VIRTUAL_PREFIX + "queryPeriodMinutes";
-    public static final String COLUMN_QUERY_PERIOD_OFFSET_MINUTES = VIRTUAL_PREFIX +
-            "queryPeriodOffsetMinutes";
+    public static final String COLUMN_PARAM_WINDOW_SIZE_SECONDS = PARAMETER_PREFIX + "window_size_seconds";
+    public static final String COLUMN_PARAM_QUERY_PERIOD_MINUTES = PARAMETER_PREFIX + "query_period_minutes";
+    public static final String COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES = PARAMETER_PREFIX + "query_period_offset_minutes";
+
+    public static final String COLUMN_SIGNAL_TIMESTAMP = VIRTUAL_PREFIX + "event_timestamp";
+    public static final String COLUMN_CONTEXT_TIMESTAMP = VIRTUAL_PREFIX + "upsert_timestamp";
+    public static final String COLUMN_SIGNAL_TIME_EPOCH_MS = VIRTUAL_PREFIX + "event_time_epoch_ms";
+    public static final String COLUMN_CONTEXT_TIME_EPOCH_MS = VIRTUAL_PREFIX + "upsert_time_epoch_ms";
+    public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "window_begin_epoch";
+    public static final String COLUMN_WINDOW_BEGIN_TIMESTAMP = VIRTUAL_PREFIX + "window_begin_timestamp";
+
+    public static final String MAX_WINDOW_BEGIN_EPOCH = "max(" + COLUMN_WINDOW_BEGIN_EPOCH + ")";
+    public static final String MAX_WINDOW_BEGIN_TIMESTAMP = "max(" + COLUMN_WINDOW_BEGIN_TIMESTAMP + ")";
 
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
@@ -147,9 +150,8 @@ public class BiosClient
         getQueryResponse(
                 new BiosQuery(
                         new BiosTableHandle("signal", "_requests",
-                            System.currentTimeMillis(), -300000L, 300000L, null, null, null),
-                        null,
-                        new BiosAggregate[]{new BiosAggregate("count", null)}));
+                            System.currentTimeMillis(), -300000L, 300L, null, null, null),
+                        null, new BiosAggregate[]{new BiosAggregate("count", null)}));
     }
 
     /**
@@ -280,9 +282,10 @@ public class BiosClient
                 }
             }
         }
+
         // -- Set defaults for parameters not already set.
         if (tableHandle.getWindowSizeSeconds() == null) {
-            tableHandle.setWindowSize(biosConfig.getDefaultWindowSizeSeconds() * 1000);
+            tableHandle.setWindowSizeSeconds(biosConfig.getDefaultWindowSizeSeconds());
         }
 
         // -- Align time range and delta.
@@ -366,18 +369,18 @@ public class BiosClient
                 break;
 
             case SIGNAL:
+                logger.debug("statement aggregate: %s", Arrays.toString(query.getAggregates()));
                 var partialStatement =
                         ISqlStatement.select(getAggregateMetrics(query.getAggregates()))
                                 .from(tableHandle.getUnderlyingTableName());
                 if ((tableHandle.getGroupBy() != null) && (tableHandle.getGroupBy().length > 0)) {
+                    logger.debug("statement groupBy: %s", Arrays.toString(tableHandle.getGroupBy()));
                     partialStatement = partialStatement.groupBy(tableHandle.getGroupBy());
                 }
                 isqlStatement = partialStatement
-                        .window(tumbling(tableHandle.getWindowSizeSeconds(), TimeUnit.MILLISECONDS))
+                        .window(tumbling(tableHandle.getWindowSizeSeconds(), TimeUnit.SECONDS))
                         .snappedTimeRange(tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta())
                         .build();
-                logger.debug("%d %d %d", tableHandle.getWindowSizeSeconds(), tableHandle.getTimeRangeStart(),
-                        tableHandle.getTimeRangeDelta());
                 break;
 
             case RAW_SIGNAL:
@@ -545,15 +548,15 @@ public class BiosClient
         }
 
         if (schemaName.equals("signal")) {
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
             columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
             columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_QUERY_PERIOD_MINUTES, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_QUERY_PERIOD_OFFSET_MINUTES, BIGINT, null, false, null, null));
+
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_MINUTES, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES, BIGINT, null, false, null, null));
         }
         else {
-            columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
-                    null, null));
+            columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false, null, null));
             columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, null, null));
         }
 

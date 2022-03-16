@@ -99,7 +99,13 @@ public final class BiosColumnHandle
 
     public boolean getIsVirtual()
     {
-        return columnName.startsWith(VIRTUAL_PREFIX);
+        if (columnName.startsWith(VIRTUAL_PREFIX)) {
+            return true;
+        }
+        if ((aggregateSource != null) && (aggregateSource.startsWith(VIRTUAL_PREFIX))) {
+            return true;
+        }
+        return false;
     }
 
     public ColumnMetadata getColumnMetadata()

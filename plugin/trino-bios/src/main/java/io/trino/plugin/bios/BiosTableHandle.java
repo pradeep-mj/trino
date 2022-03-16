@@ -123,7 +123,7 @@ public class BiosTableHandle
         return windowSizeSeconds;
     }
 
-    public void setWindowSize(Long windowSizeSeconds)
+    public void setWindowSizeSeconds(Long windowSizeSeconds)
     {
         this.windowSizeSeconds = windowSizeSeconds;
     }

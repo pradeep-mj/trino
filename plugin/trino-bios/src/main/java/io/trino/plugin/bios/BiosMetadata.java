@@ -49,20 +49,22 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static io.trino.plugin.bios.BiosClient.COLUMN_QUERY_PERIOD_MINUTES;
-import static io.trino.plugin.bios.BiosClient.COLUMN_QUERY_PERIOD_OFFSET_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_WINDOW_SIZE_SECONDS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_TIMESTAMP;
-import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
+import static io.trino.spi.type.BigintType.BIGINT;
 import static java.util.Objects.requireNonNull;
 
 public class BiosMetadata
@@ -274,20 +276,23 @@ public class BiosMetadata
                     }
                     break;
 
-                case COLUMN_WINDOW_SIZE_SECONDS:
-                    windowSizeSeconds = getLongValuePredicate(entry.getValue(), COLUMN_WINDOW_SIZE_SECONDS) * 1000;
+                case COLUMN_PARAM_WINDOW_SIZE_SECONDS:
+                    windowSizeSeconds = getLongValuePredicate(entry.getValue(),
+                            COLUMN_PARAM_WINDOW_SIZE_SECONDS) * 1000;
                     somePushdownApplied = true;
                     logger.debug("pushdown filter: windowSizeSeconds %d", windowSizeSeconds);
                     break;
 
-                case COLUMN_QUERY_PERIOD_MINUTES:
-                    queryPeriodMinutes = getLongValuePredicate(entry.getValue(), COLUMN_QUERY_PERIOD_MINUTES);
+                case COLUMN_PARAM_QUERY_PERIOD_MINUTES:
+                    queryPeriodMinutes = getLongValuePredicate(entry.getValue(),
+                            COLUMN_PARAM_QUERY_PERIOD_MINUTES);
                     somePushdownApplied = true;
                     logger.debug("pushdown filter: queryPeriodMinutes %d", queryPeriodMinutes);
                     break;
 
-                case COLUMN_QUERY_PERIOD_OFFSET_MINUTES:
-                    queryPeriodOffsetMinutes = getLongValuePredicate(entry.getValue(), COLUMN_QUERY_PERIOD_OFFSET_MINUTES);
+                case COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES:
+                    queryPeriodOffsetMinutes = getLongValuePredicate(entry.getValue(),
+                            COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES);
                     somePushdownApplied = true;
                     logger.debug("pushdown filter: queryPeriodOffsetMinutes %d", queryPeriodOffsetMinutes);
                     break;
@@ -363,13 +368,22 @@ public class BiosMetadata
             if (!biosClient.isSupportedAggregate(aggregate.getFunctionName())) {
                 return Optional.empty();
             }
-            if (aggregate.getInputs().size() != 1) {
-                throw new TrinoException(GENERIC_USER_ERROR, aggregate.getFunctionName() +
-                        " requires exactly 1 input, got " +
-                        String.valueOf(aggregate.getInputs().size()));
+            Variable input;
+            String name;
+            if (aggregate.getFunctionName().equalsIgnoreCase("count")) {
+                input = new Variable("dummy", BIGINT);
+                name = "count()";
             }
-            var input = (Variable) aggregate.getInputs().get(0);
-            String name = aggregate.getFunctionName() + "(" + input.getName() + ")";
+            else {
+                if (aggregate.getInputs().size() != 1) {
+                    throw new TrinoException(GENERIC_USER_ERROR, aggregate.getFunctionName() +
+                            " requires exactly 1 input, got " +
+                            String.valueOf(aggregate.getInputs().size()));
+                }
+                input = (Variable) aggregate.getInputs().get(0);
+                name = aggregate.getFunctionName().toLowerCase(Locale.getDefault()) + "(" +
+                        input.getName().toLowerCase(Locale.getDefault()) + ")";
+            }
             outProjections.add(new Variable(name, aggregate.getOutputType()));
             outAssignments.add(new Assignment(name,
                     new BiosColumnHandle(name, aggregate.getOutputType(), null, false,
