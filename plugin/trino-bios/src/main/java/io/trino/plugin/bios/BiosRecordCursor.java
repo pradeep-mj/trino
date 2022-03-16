@@ -33,6 +33,7 @@ import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -106,10 +107,8 @@ public class BiosRecordCursor
                     .map(ch -> new BiosAggregate(ch.getAggregateFunction(), ch.getAggregateSource()))
                     .toArray(BiosAggregate[]::new);
 
-            BiosQuery query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                    tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta(),
-                    tableHandle.getWindowSize(), tableHandle.getGroupBy(), attributes, aggregates);
-            ISqlResponse response = biosClient.execute(query);
+            BiosQuery query = new BiosQuery(tableHandle.duplicate(), attributes, aggregates);
+            ISqlResponse response = biosClient.getQueryResponse(query);
 
             if (isWindowed()) {
                 windows = response.getDataWindows().iterator();
@@ -117,8 +116,6 @@ public class BiosRecordCursor
                     currentWindow = windows.next();
                     currentWindowNum = 0L;
                     records = currentWindow.getRecords().iterator();
-                    logger.debug("     %d records in window %d", currentWindow.getRecords().size(),
-                            currentWindowNum);
                 }
             }
             else {
@@ -144,8 +141,6 @@ public class BiosRecordCursor
                     currentWindow = windows.next();
                     currentWindowNum++;
                     records = currentWindow.getRecords().iterator();
-                    logger.debug("     %d records in window %d", currentWindow.getRecords().size(),
-                            currentWindowNum);
                     if (records.hasNext()) {
                         currentRecord = records.next();
                         return true;
@@ -203,6 +198,15 @@ public class BiosRecordCursor
                 }
                 // bios v1 uses milliseconds since epoch, but this virtual column is in seconds.
                 return currentWindow.getWindowBeginTime() / 1000;
+
+            case COLUMN_WINDOW_BEGIN_TIMESTAMP:
+                if (!isWindowed()) {
+                    throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_TIMESTAMP +
+                            " can only be used for a windowed query.");
+                }
+                // bios v1 uses milliseconds since epoch, but Trino uses
+                // microseconds since epoch for timestamps; convert to micros.
+                return currentWindow.getWindowBeginTime() * 1000;
 
             default:
                 checkFieldType(field, BIGINT);

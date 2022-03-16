@@ -33,7 +33,9 @@ public class BiosTableHandle
     protected final String tableName;
     protected Long timeRangeStart;
     protected Long timeRangeDelta;
-    protected Long windowSize;
+    protected Long windowSizeSeconds;
+    protected Long queryPeriodMinutes;
+    protected Long queryPeriodOffsetMinutes;
     protected String[] groupBy;
 
     @JsonCreator
@@ -42,14 +44,18 @@ public class BiosTableHandle
             @JsonProperty("tableName") String tableName,
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta,
-            @JsonProperty("windowSize") Long windowSize,
+            @JsonProperty("windowSizeSeconds") Long windowSizeSeconds,
+            @JsonProperty("queryPeriodMinutes") Long queryPeriodMinutes,
+            @JsonProperty("queryPeriodOffsetMinutes") Long queryPeriodOffsetMinutes,
             @JsonProperty("groupBy") String[] groupBy)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.timeRangeStart = timeRangeStart;
         this.timeRangeDelta = timeRangeDelta;
-        this.windowSize = windowSize;
+        this.windowSizeSeconds = windowSizeSeconds;
+        this.queryPeriodMinutes = queryPeriodMinutes;
+        this.queryPeriodOffsetMinutes = queryPeriodOffsetMinutes;
         this.groupBy = groupBy;
     }
 
@@ -59,6 +65,12 @@ public class BiosTableHandle
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
+    }
+
+    public BiosTableHandle duplicate()
+    {
+        return new BiosTableHandle(schemaName, tableName, timeRangeStart, timeRangeDelta,
+                windowSizeSeconds, queryPeriodMinutes, queryPeriodOffsetMinutes, groupBy);
     }
 
     @JsonProperty
@@ -71,6 +83,16 @@ public class BiosTableHandle
     public String getTableName()
     {
         return tableName;
+    }
+
+    public String getUnderlyingTableName()
+    {
+        if (getTableKind() == BiosTableKind.RAW_SIGNAL) {
+            return BiosClient.removeRawSuffix(getTableName());
+        }
+        else {
+            return getTableName();
+        }
     }
 
     @JsonProperty
@@ -96,14 +118,26 @@ public class BiosTableHandle
     }
 
     @JsonProperty
-    public Long getWindowSize()
+    public Long getWindowSizeSeconds()
     {
-        return windowSize;
+        return windowSizeSeconds;
     }
 
-    public void setWindowSize(Long windowSize)
+    public void setWindowSize(Long windowSizeSeconds)
     {
-        this.windowSize = windowSize;
+        this.windowSizeSeconds = windowSizeSeconds;
+    }
+
+    @JsonProperty
+    public Long getQueryPeriodMinutes()
+    {
+        return queryPeriodMinutes;
+    }
+
+    @JsonProperty
+    public Long getQueryPeriodOffsetMinutes()
+    {
+        return queryPeriodOffsetMinutes;
     }
 
     @JsonProperty
@@ -135,7 +169,8 @@ public class BiosTableHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize,
+        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta,
+                windowSizeSeconds, queryPeriodMinutes, queryPeriodOffsetMinutes,
                 Arrays.hashCode(groupBy));
     }
 
@@ -154,7 +189,9 @@ public class BiosTableHandle
                 Objects.equals(this.tableName, other.tableName) &&
                 Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
                 Objects.equals(this.timeRangeDelta, other.timeRangeDelta) &&
-                Objects.equals(this.windowSize, other.windowSize) &&
+                Objects.equals(this.windowSizeSeconds, other.windowSizeSeconds) &&
+                Objects.equals(this.queryPeriodMinutes, other.queryPeriodMinutes) &&
+                Objects.equals(this.queryPeriodOffsetMinutes, other.queryPeriodOffsetMinutes) &&
                 Arrays.equals(this.groupBy, other.groupBy);
     }
 
@@ -166,7 +203,9 @@ public class BiosTableHandle
                 .add("table", tableName)
                 .add("start", timeRangeStart)
                 .add("delta", timeRangeDelta)
-                .add("window", windowSize)
+                .add("window", windowSizeSeconds)
+                .add("period", queryPeriodMinutes)
+                .add("offset", queryPeriodOffsetMinutes)
                 .add("groupBy", Arrays.toString(groupBy))
                 .omitNullValues()
                 .toString();

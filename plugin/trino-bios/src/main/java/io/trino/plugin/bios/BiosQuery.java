@@ -22,35 +22,26 @@ import java.util.Objects;
 import static com.google.common.base.MoreObjects.toStringHelper;
 
 public final class BiosQuery
-        extends BiosTableHandle
 {
+    private final BiosTableHandle tableHandle;
     private String[] attributes;
-    private BiosAggregate[] aggregates;
+    private final BiosAggregate[] aggregates;
 
     @JsonCreator
     public BiosQuery(
-            @JsonProperty("schemaName") String schemaName,
-            @JsonProperty("tableName") String tableName,
-            @JsonProperty("timeRangeStart") Long timeRangeStart,
-            @JsonProperty("timeRangeDelta") Long timeRangeDelta,
-            @JsonProperty("windowSize") Long windowSize,
-            @JsonProperty("groupBy") String[] groupBy,
+            @JsonProperty("tableHandle") BiosTableHandle tableHandle,
             @JsonProperty("attributes") String[] attributes,
             @JsonProperty("aggregates") BiosAggregate[] aggregates)
     {
-        super(schemaName, tableName, timeRangeStart, timeRangeDelta, windowSize, groupBy);
+        this.tableHandle = tableHandle;
         this.attributes = attributes;
         this.aggregates = aggregates;
     }
 
-    public String getUnderlyingTableName()
+    @JsonProperty
+    public BiosTableHandle getTableHandle()
     {
-        if (getTableKind() == BiosTableKind.RAW_SIGNAL) {
-            return BiosClient.removeRawSuffix(tableName);
-        }
-        else {
-            return tableName;
-        }
+        return tableHandle;
     }
 
     @JsonProperty
@@ -73,7 +64,7 @@ public final class BiosQuery
     @Override
     public int hashCode()
     {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(attributes),
+        return Objects.hash(tableHandle.hashCode(), Arrays.hashCode(attributes),
                 Arrays.hashCode(aggregates));
     }
 
@@ -86,12 +77,10 @@ public final class BiosQuery
         if ((obj == null) || (getClass() != obj.getClass())) {
             return false;
         }
-        if (!super.equals(obj)) {
-            return false;
-        }
 
         BiosQuery other = (BiosQuery) obj;
-        return Arrays.equals(this.attributes, other.attributes) &&
+        return Objects.equals(this.tableHandle, other.tableHandle) &&
+                Arrays.equals(this.attributes, other.attributes) &&
                 Arrays.equals(this.aggregates, other.aggregates);
     }
 
@@ -99,7 +88,7 @@ public final class BiosQuery
     public String toString()
     {
         return toStringHelper(this)
-                .add("super", super.toString())
+                .add("table", tableHandle.toString())
                 .add("attributes", Arrays.toString(attributes))
                 .add("aggregates", Arrays.toString(aggregates))
                 .omitNullValues()

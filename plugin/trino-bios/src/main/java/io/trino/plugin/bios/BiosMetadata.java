@@ -40,7 +40,6 @@ import io.trino.spi.connector.TopNApplicationResult;
 import io.trino.spi.expression.ConnectorExpression;
 import io.trino.spi.expression.Variable;
 import io.trino.spi.predicate.Domain;
-import io.trino.spi.predicate.EquatableValueSet;
 import io.trino.spi.predicate.SortedRangeSet;
 import io.trino.spi.predicate.TupleDomain;
 
@@ -55,9 +54,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.trino.plugin.bios.BiosClient.COLUMN_QUERY_PERIOD_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_QUERY_PERIOD_OFFSET_MINUTES;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
+import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_SIZE_SECONDS;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
@@ -206,7 +208,9 @@ public class BiosMetadata
         Map<ColumnHandle, Domain> remainingDomains = new HashMap<>();
         Long timeRangeStart = null;
         Long timeRangeDelta = null;
-        Long windowSize = null;
+        Long windowSizeSeconds = null;
+        Long queryPeriodMinutes = null;
+        Long queryPeriodOffsetMinutes = null;
 
         if (constraint.getSummary().getDomains().isEmpty()) {
             return Optional.empty();
@@ -218,6 +222,7 @@ public class BiosMetadata
                 case COLUMN_SIGNAL_TIMESTAMP:
                 case COLUMN_SIGNAL_TIME_EPOCH_MS:
                 case COLUMN_WINDOW_BEGIN_EPOCH:
+                case COLUMN_WINDOW_BEGIN_TIMESTAMP:
                     // If we have not already set the time range, pushdown time range.
                     if ((timeRangeStart == null)) {
                         long timeRangeLow;
@@ -225,6 +230,7 @@ public class BiosMetadata
                         double scalingFactor = 1;   // To convert to milliseconds.
                         switch (columnName) {
                             case COLUMN_SIGNAL_TIMESTAMP:
+                            case COLUMN_WINDOW_BEGIN_TIMESTAMP:
                                 // Trino uses microseconds since epoch for timestamps, whereas
                                 // bios v1 uses milliseconds.
                                 scalingFactor = 1.0 / 1000;
@@ -269,20 +275,21 @@ public class BiosMetadata
                     break;
 
                 case COLUMN_WINDOW_SIZE_SECONDS:
-                    var valueSet = entry.getValue().getValues();
-                    if (!(valueSet instanceof EquatableValueSet)) {
-                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_SECONDS +
-                                " can only be equated to a specific value.");
-                    }
-                    var windowSizeValueSet = (EquatableValueSet) valueSet;
-                    if (!windowSizeValueSet.isSingleValue()) {
-                        throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_SIZE_SECONDS +
-                                " can only be equated to a single value.");
-                    }
-                    // Set the window size.
-                    windowSize = ((Long) windowSizeValueSet.getSingleValue()) * 1000;
+                    windowSizeSeconds = getLongValuePredicate(entry.getValue(), COLUMN_WINDOW_SIZE_SECONDS) * 1000;
                     somePushdownApplied = true;
-                    logger.debug("pushdown filter: windowSize %d", windowSize);
+                    logger.debug("pushdown filter: windowSizeSeconds %d", windowSizeSeconds);
+                    break;
+
+                case COLUMN_QUERY_PERIOD_MINUTES:
+                    queryPeriodMinutes = getLongValuePredicate(entry.getValue(), COLUMN_QUERY_PERIOD_MINUTES);
+                    somePushdownApplied = true;
+                    logger.debug("pushdown filter: queryPeriodMinutes %d", queryPeriodMinutes);
+                    break;
+
+                case COLUMN_QUERY_PERIOD_OFFSET_MINUTES:
+                    queryPeriodOffsetMinutes = getLongValuePredicate(entry.getValue(), COLUMN_QUERY_PERIOD_OFFSET_MINUTES);
+                    somePushdownApplied = true;
+                    logger.debug("pushdown filter: queryPeriodOffsetMinutes %d", queryPeriodOffsetMinutes);
                     break;
 
                 default:
@@ -302,13 +309,25 @@ public class BiosMetadata
             return Optional.of(
                     new ConstraintApplicationResult<>(
                             new BiosTableHandle(tableHandle.getSchemaName(), tableHandle.getTableName(),
-                                    timeRangeStart, timeRangeDelta, windowSize, tableHandle.getGroupBy()),
+                                    timeRangeStart, timeRangeDelta, windowSizeSeconds,
+                                    queryPeriodMinutes, queryPeriodOffsetMinutes,
+                                    tableHandle.getGroupBy()),
                             remainingFilter,
                             false));
         }
         else {
             return Optional.empty();
         }
+    }
+
+    private long getLongValuePredicate(final Domain domain, final String columnName)
+    {
+        if (!domain.isSingleValue()) {
+            logger.debug("columnName %s domain %s", columnName, domain);
+            throw new TrinoException(GENERIC_USER_ERROR, columnName +
+                    " can only be equated to a single value.");
+        }
+        return (Long) domain.getSingleValue();
     }
 
     @Override
@@ -369,7 +388,8 @@ public class BiosMetadata
         var outTableHandle = new BiosTableHandle(tableHandle.getSchemaName(),
                 tableHandle.getTableName(),
                 tableHandle.getTimeRangeStart(), tableHandle.timeRangeDelta,
-                tableHandle.getWindowSize(), groupBy);
+                tableHandle.getWindowSizeSeconds(), tableHandle.getQueryPeriodMinutes(),
+                tableHandle.getQueryPeriodOffsetMinutes(), groupBy);
 
         logger.debug("pushdown aggregates: %s,  groupBy: %s", internalAggregateNames,
                 Arrays.toString(groupBy));

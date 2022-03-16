@@ -76,6 +76,11 @@ public class BiosClient
     public static final String COLUMN_CONTEXT_TIME_EPOCH_MS = VIRTUAL_PREFIX + "upsertTimeEpochMs";
     public static final String COLUMN_WINDOW_SIZE_SECONDS = VIRTUAL_PREFIX + "windowSizeSeconds";
     public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "windowBeginEpoch";
+    public static final String COLUMN_WINDOW_BEGIN_TIMESTAMP = VIRTUAL_PREFIX +
+            "windowBeginTimestamp";
+    public static final String COLUMN_QUERY_PERIOD_MINUTES = VIRTUAL_PREFIX + "queryPeriodMinutes";
+    public static final String COLUMN_QUERY_PERIOD_OFFSET_MINUTES = VIRTUAL_PREFIX +
+            "queryPeriodOffsetMinutes";
 
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
@@ -139,8 +144,12 @@ public class BiosClient
                         }
                     });
         // Execute one query to initialize bios SDK metrics.
-        execute(new BiosQuery("signal", "_requests", System.currentTimeMillis(), -300000L, 300000L,
-                null, null, new BiosAggregate[]{new BiosAggregate("count", null)}));
+        getQueryResponse(
+                new BiosQuery(
+                        new BiosTableHandle("signal", "_requests",
+                            System.currentTimeMillis(), -300000L, 300000L, null, null, null),
+                        null,
+                        new BiosAggregate[]{new BiosAggregate("count", null)}));
     }
 
     /**
@@ -246,28 +255,43 @@ public class BiosClient
         return (long) Math.signum(toBeCeiled) * divisor * (long) (((Math.abs(toBeCeiled) - 1) / divisor) + 1);
     }
 
-    public ISqlResponse execute(BiosQuery query)
+    public ISqlResponse getQueryResponse(BiosQuery query)
     {
-        // Normalize query parameters for efficiency and add defaults.
+        // Normalize query parameters.
+        // This populates missing pieces and makes the query object ready to be used in the
+        // response cache.
 
+        // Ensure time range params are set, calculating them or using defaults if necessary.
+        final var tableHandle = query.getTableHandle();
+        if (tableHandle.getTimeRangeStart() == null) {
+            if (tableHandle.getQueryPeriodOffsetMinutes() != null) {
+                tableHandle.setTimeRangeStart(System.currentTimeMillis() - tableHandle.getQueryPeriodOffsetMinutes() * 60 * 1000);
+            }
+            else {
+                tableHandle.setTimeRangeStart(System.currentTimeMillis() - biosConfig.getDefaultFeatureLagSeconds() * 1000);
+            }
+
+            if (tableHandle.getTimeRangeDelta() == null) {
+                if (tableHandle.getQueryPeriodMinutes() != null) {
+                    tableHandle.setTimeRangeDelta(-1000 * 60 * tableHandle.getQueryPeriodMinutes());
+                }
+                else {
+                    tableHandle.setTimeRangeDelta(-1000 * biosConfig.getDefaultTimeRangeDeltaSeconds());
+                }
+            }
+        }
         // -- Set defaults for parameters not already set.
-        if (query.getTimeRangeStart() == null) {
-            query.setTimeRangeStart(System.currentTimeMillis() - biosConfig.getDefaultFeatureLagSeconds() * 1000);
-        }
-        if (query.getTimeRangeDelta() == null) {
-            query.setTimeRangeDelta(-1000 * biosConfig.getDefaultTimeRangeDeltaSeconds());
-        }
-        if (query.getWindowSize() == null) {
-            query.setWindowSize(biosConfig.getDefaultWindowSizeSeconds() * 1000);
+        if (tableHandle.getWindowSizeSeconds() == null) {
+            tableHandle.setWindowSize(biosConfig.getDefaultWindowSizeSeconds() * 1000);
         }
 
         // -- Align time range and delta.
-        query.setTimeRangeStart(floor(query.getTimeRangeStart(),
+        tableHandle.setTimeRangeStart(floor(tableHandle.getTimeRangeStart(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
-        query.setTimeRangeDelta(ceiling(query.getTimeRangeDelta(),
+        tableHandle.setTimeRangeDelta(ceiling(tableHandle.getTimeRangeDelta(),
                 biosConfig.getDataAlignmentSeconds() * 1000));
 
-        switch (query.getTableKind()) {
+        switch (tableHandle.getTableKind()) {
             case RAW_SIGNAL:
                 // -- For raw signals, get all attributes so that we don't have many queries with
                 //      different subsets of attributes.
@@ -316,17 +340,18 @@ public class BiosClient
     {
         ISqlStatement isqlStatement;
 
-        switch (query.getTableKind()) {
+        final var tableHandle = query.getTableHandle();
+        switch (tableHandle.getTableKind()) {
             case CONTEXT:
                 // Contexts only support listing the primary key attribute directly.
                 // First get all the primary key values, and then issue a second query to get
                 // all the attributes for each of those keys.
 
-                var columns = getColumnHandles(query.getSchemaName(), query.getTableName());
+                var columns = getColumnHandles(tableHandle.getSchemaName(), tableHandle.getTableName());
                 String keyColumnName = columns.get(0).getColumnName();
 
                 ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
-                        .fromContext(query.getUnderlyingTableName())
+                        .fromContext(tableHandle.getUnderlyingTableName())
                         .build();
 
                 ISqlResponse preliminaryResponse = executeStatement(preliminaryStatement);
@@ -335,7 +360,7 @@ public class BiosClient
                         .toArray(String[]::new);
 
                 isqlStatement = ISqlStatement.select()
-                        .fromContext(query.getUnderlyingTableName())
+                        .fromContext(tableHandle.getUnderlyingTableName())
                         .where(keys().in((java.lang.Object) keyValues))
                         .build();
                 break;
@@ -343,22 +368,22 @@ public class BiosClient
             case SIGNAL:
                 var partialStatement =
                         ISqlStatement.select(getAggregateMetrics(query.getAggregates()))
-                        .from(query.getUnderlyingTableName());
-                if ((query.getGroupBy() != null) && (query.getGroupBy().length > 0)) {
-                    partialStatement = partialStatement.groupBy(query.getGroupBy());
+                                .from(tableHandle.getUnderlyingTableName());
+                if ((tableHandle.getGroupBy() != null) && (tableHandle.getGroupBy().length > 0)) {
+                    partialStatement = partialStatement.groupBy(tableHandle.getGroupBy());
                 }
                 isqlStatement = partialStatement
-                        .window(tumbling(query.getWindowSize(), TimeUnit.MILLISECONDS))
-                        .snappedTimeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
+                        .window(tumbling(tableHandle.getWindowSizeSeconds(), TimeUnit.MILLISECONDS))
+                        .snappedTimeRange(tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta())
                         .build();
-                logger.debug("%d %d %d", query.getWindowSize(), query.getTimeRangeStart(),
-                        query.getTimeRangeDelta());
+                logger.debug("%d %d %d", tableHandle.getWindowSizeSeconds(), tableHandle.getTimeRangeStart(),
+                        tableHandle.getTimeRangeDelta());
                 break;
 
             case RAW_SIGNAL:
                 isqlStatement = ISqlStatement.select()
-                        .from(query.getUnderlyingTableName())
-                        .timeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
+                        .from(tableHandle.getUnderlyingTableName())
+                        .timeRange(tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta())
                         .build();
                 break;
 
@@ -518,15 +543,18 @@ public class BiosClient
             isFirstAttribute = false;
             columns.add(columnHandle);
         }
-        columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
-                null, null));
-        columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, null, null));
 
         if (schemaName.equals("signal")) {
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_SIZE_SECONDS, BIGINT, null, false,
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_QUERY_PERIOD_MINUTES, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_QUERY_PERIOD_OFFSET_MINUTES, BIGINT, null, false, null, null));
+        }
+        else {
+            columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false,
                     null, null));
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false,
-                    null, null));
+            columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, null, null));
         }
 
         return columns.build();
