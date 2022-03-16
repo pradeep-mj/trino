@@ -158,12 +158,12 @@ public final class BiosColumnHandle
     public String toString()
     {
         return toStringHelper(this)
-                .add("columnName", columnName)
-                .add("columnType", columnType)
-                .add("defaultValue", defaultValue)
+                .add("name", columnName)
+                .add("type", columnType)
+                .add("default", defaultValue)
                 .add("isKey", isKey)
-                .add("aggregateFunction", aggregateFunction)
-                .add("aggregateSource", aggregateSource)
+                .add("function", aggregateFunction)
+                .add("source", aggregateSource)
                 .omitNullValues()
                 .toString();
     }

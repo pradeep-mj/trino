@@ -162,11 +162,11 @@ public class BiosTableHandle
     public String toString()
     {
         return toStringHelper(this)
-                .add("schemaName", schemaName)
-                .add("tableName", tableName)
-                .add("timeRangeStart", timeRangeStart)
-                .add("timeRangeDelta", timeRangeDelta)
-                .add("windowSize", windowSize)
+                .add("schema", schemaName)
+                .add("table", tableName)
+                .add("start", timeRangeStart)
+                .add("delta", timeRangeDelta)
+                .add("window", windowSize)
                 .add("groupBy", Arrays.toString(groupBy))
                 .omitNullValues()
                 .toString();
