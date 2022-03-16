@@ -310,6 +310,7 @@ public class BiosClient
                 break;
         }
 
+        logger.debug("bios got: %s", query);
         return dataCache.getUnchecked(query);
     }
 
@@ -369,12 +370,10 @@ public class BiosClient
                 break;
 
             case SIGNAL:
-                logger.debug("statement aggregate: %s", Arrays.toString(query.getAggregates()));
                 var partialStatement =
                         ISqlStatement.select(getAggregateMetrics(query.getAggregates()))
                                 .from(tableHandle.getUnderlyingTableName());
                 if ((tableHandle.getGroupBy() != null) && (tableHandle.getGroupBy().length > 0)) {
-                    logger.debug("statement groupBy: %s", Arrays.toString(tableHandle.getGroupBy()));
                     partialStatement = partialStatement.groupBy(tableHandle.getGroupBy());
                 }
                 isqlStatement = partialStatement
@@ -394,13 +393,13 @@ public class BiosClient
                 return null;
         }
 
-        logger.debug("----------> bios network request: statement %s", query);
+        logger.debug("----------> bios network request: %s", query);
         ISqlResponse response = executeStatement(isqlStatement);
         long firstWindowRecords = 0;
         if (response.getDataWindows().size() > 0) {
             firstWindowRecords = response.getDataWindows().get(0).getRecords().size();
         }
-        logger.debug("<---------- bios network response: statement returned %d records, %d windows "
+        logger.debug("<---------- bios network response: query returned %d records, %d windows "
                         + "with %d records in first window",
                 response.getRecords().size(), response.getDataWindows().size(), firstWindowRecords);
 
@@ -417,7 +416,7 @@ public class BiosClient
             handleException(e, true);
             // If handleException did not throw an exception, it means we can retry.
             try {
-                logger.debug("retrying ----------> bios network request: statement");
+                logger.debug("retrying ----------> bios network request: query");
                 response = session.get().execute(statement);
             }
             catch (BiosClientException e2) {

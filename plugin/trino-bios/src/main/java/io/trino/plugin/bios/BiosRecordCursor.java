@@ -99,8 +99,6 @@ public class BiosRecordCursor
     {
         // Run the query if it has not already been run.
         if ((windows == null) && (records == null)) {
-            logger.debug("bios got query on table %s", tableHandle.getTableName());
-
             String[] attributes = columnHandles.stream()
                     .filter(ch -> !ch.getIsVirtual())
                     .filter(ch -> !ch.getIsAggregate())
@@ -111,6 +109,9 @@ public class BiosRecordCursor
                     .filter(BiosColumnHandle::getIsAggregate)
                     .map(ch -> new BiosAggregate(ch.getAggregateFunction(), ch.getAggregateSource()))
                     .toArray(BiosAggregate[]::new);
+            if (aggregates.length == 0) {
+                aggregates = null;
+            }
 
             BiosQuery query = new BiosQuery(tableHandle.duplicate(), attributes, aggregates);
             ISqlResponse response = biosClient.getQueryResponse(query);

@@ -87,10 +87,9 @@ public final class BiosQuery
     @Override
     public String toString()
     {
-        return toStringHelper(this)
-                .add("table", tableHandle.toString())
-                .add("attributes", Arrays.toString(attributes))
-                .add("aggregates", Arrays.toString(aggregates))
+        return toStringHelper("query")
+                .add("", tableHandle.toString())
+                .add("aggregates", aggregates)
                 .omitNullValues()
                 .toString();
     }

@@ -19,8 +19,6 @@ import io.airlift.log.Logger;
 
 import java.util.Objects;
 
-import static com.google.common.base.MoreObjects.toStringHelper;
-
 public final class BiosAggregate
 {
     private static final Logger logger = Logger.get(BiosAggregate.class);
@@ -73,10 +71,7 @@ public final class BiosAggregate
     @Override
     public String toString()
     {
-        return toStringHelper(this)
-                .add("aggregateFunction", aggregateFunction)
-                .add("aggregateSource", aggregateSource)
-                .omitNullValues()
-                .toString();
+        String source = aggregateSource != null ? aggregateSource : "";
+        return aggregateFunction + "(" + source + ")";
     }
 }

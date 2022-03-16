@@ -91,7 +91,7 @@ public class BiosMetadata
     @Override
     public BiosTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        logger.debug("getTableHandle");
+        // logger.debug("getTableHandle");
         if (!listSchemaNames(session).contains(tableName.getSchemaName())) {
             logger.debug("getTableHandle - returning null because schema was not found.");
             return null;
@@ -148,7 +148,7 @@ public class BiosMetadata
     @Override
     public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
-        logger.debug("getColumnHandles");
+        // logger.debug("getColumnHandles");
         BiosTableHandle biosTableHandle = (BiosTableHandle) tableHandle;
 
         var columns = biosClient.getColumnHandles(biosTableHandle.getSchemaName(),

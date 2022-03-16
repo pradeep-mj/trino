@@ -198,15 +198,14 @@ public class BiosTableHandle
     @Override
     public String toString()
     {
-        return toStringHelper(this)
-                .add("schema", schemaName)
-                .add("table", tableName)
+        return toStringHelper("table")
+                .add("", toSchemaTableName())
                 .add("start", timeRangeStart)
                 .add("delta", timeRangeDelta)
                 .add("window", windowSizeSeconds)
                 .add("period", queryPeriodMinutes)
                 .add("offset", queryPeriodOffsetMinutes)
-                .add("groupBy", Arrays.toString(groupBy))
+                .add("groupBy", groupBy)
                 .omitNullValues()
                 .toString();
     }
