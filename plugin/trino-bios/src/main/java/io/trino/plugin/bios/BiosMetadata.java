@@ -417,8 +417,8 @@ public class BiosMetadata
     public Optional<ProjectionApplicationResult<ConnectorTableHandle>> applyProjection(ConnectorSession session, ConnectorTableHandle handle, List<ConnectorExpression> projections, Map<String, ColumnHandle> assignments)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
-        // logger.debug("applyProjection %s: projections: %s  assignments: %s",
-        //         tableHandle, projections, assignments);
+        logger.debug("applyProjection %s: projections: %s  assignments: %s",
+                tableHandle, projections, assignments);
 
         return Optional.empty();
     }
@@ -427,7 +427,7 @@ public class BiosMetadata
     public Optional<LimitApplicationResult<ConnectorTableHandle>> applyLimit(ConnectorSession session, ConnectorTableHandle handle, long limit)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
-        logger.debug("applyLimit %s: limit: %d", tableHandle, limit);
+        // logger.debug("applyLimit %s: limit: %d", tableHandle, limit);
 
         return Optional.empty();
     }
@@ -441,8 +441,8 @@ public class BiosMetadata
             Map<String, ColumnHandle> assignments)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
-        logger.debug("applyTopN %s: topNCount: %d  sortItems: %s  assignments: %s",
-                tableHandle, topNCount, sortItems, assignments);
+        // logger.debug("applyTopN %s: topNCount: %d  sortItems: %s  assignments: %s",
+        //         tableHandle, topNCount, sortItems, assignments);
 
         return Optional.empty();
     }

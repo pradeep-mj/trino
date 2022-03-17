@@ -127,9 +127,9 @@ public final class BiosColumnHandle
             builder.setComment(Optional.of("virtual column"));
         }
 
-        if (getIsAggregate()) {
-            logger.debug("getColumnMetadata called for aggregate %s", columnName);
-        }
+        // if (getIsAggregate()) {
+        //     logger.debug("getColumnMetadata called for aggregate %s", columnName);
+        // }
 
         return builder.build();
     }
