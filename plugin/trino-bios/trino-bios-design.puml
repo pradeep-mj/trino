@@ -147,7 +147,7 @@ class BiosClient <<Singleton>> <<Major>> {
     + ** getTableNames (String schema) **
     + getTableHandle (schema, tableName)
     + ** getColumnHandles (schema, tableName) **
-    + ** execute(query) **
+    + ** getQueryResponse(query) **
     + isSupportedAggregate(String aggregate)
 }
 
@@ -209,7 +209,7 @@ class BiosQuery << (J, orangeRed) >> {
     - BiosAggregate[] aggregates
 }
 BiosQuery -> BiosAggregate
-BiosTableHandle <|- BiosQuery
+BiosTableHandle <- BiosQuery
 
 
 entity Process_Initialization <<Trino>>

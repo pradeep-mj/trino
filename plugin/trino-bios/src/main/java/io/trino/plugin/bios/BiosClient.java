@@ -320,7 +320,8 @@ public class BiosClient
                 // -- Ensure main signals are only used for aggregated results, not raw rows.
                 if ((query.getAggregates() == null) || (query.getAggregates().length == 0)) {
                     throw new TrinoException(GENERIC_USER_ERROR, "Query has no aggregate or has "
-                            + "unsupported complex transformation; use raw signals for such queries.");
+                            + "unsupported complex transformation; use raw signals for such "
+                            + "queries. Query: " + query.toString());
                 }
                 break;
         }
