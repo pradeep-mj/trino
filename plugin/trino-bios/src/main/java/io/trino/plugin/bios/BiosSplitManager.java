@@ -145,7 +145,7 @@ public class BiosSplitManager
         long splitSize = (tableHandle.getTableKind() == BiosTableKind.SIGNAL) ?
                 biosConfig.getFeatureSplitSizeSeconds() * 1000 :
                 biosConfig.getRawSignalSplitSizeSeconds() * 1000;
-        splitSize = ceiling(splitSize, windowSizeSeconds);
+        splitSize = ceiling(splitSize, windowSizeSeconds * 1000);
 
         // * Create splits.
         // All splits except possibly the latest one should be perfectly aligned to split size.

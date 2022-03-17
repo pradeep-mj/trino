@@ -278,7 +278,7 @@ public class BiosMetadata
 
                 case COLUMN_PARAM_WINDOW_SIZE_SECONDS:
                     windowSizeSeconds = getLongValuePredicate(entry.getValue(),
-                            COLUMN_PARAM_WINDOW_SIZE_SECONDS) * 1000;
+                            COLUMN_PARAM_WINDOW_SIZE_SECONDS);
                     somePushdownApplied = true;
                     logger.debug("pushdown filter: windowSizeSeconds %d", windowSizeSeconds);
                     break;
