@@ -88,6 +88,9 @@ public class BiosClient
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
     private static final Set<String> aggregates;
+    public static final String SCHEMA_CONTEXTS = "contexts";
+    public static final String SCHEMA_SIGNALS = "signals";
+    public static final String SCHEMA_RAW_SIGNALS = "raw_signals";
 
     static {
         biosTypeMap.put("integer", BIGINT);
@@ -130,12 +133,7 @@ public class BiosClient
                     @Override
                     public int weigh(BiosQuery query, ISqlResponse response)
                     {
-                        int numRows = 0;
-                        numRows += response.getRecords().size();
-                        for (var window : response.getDataWindows()) {
-                            numRows += window.getRecords().size();
-                        }
-                        return numRows;
+                        return getTotalRows(response);
                     }
                 })
                 .expireAfterWrite(config.getDataCacheSeconds(), TimeUnit.SECONDS),
@@ -149,9 +147,19 @@ public class BiosClient
         // Execute one query to initialize bios SDK metrics.
         getQueryResponse(
                 new BiosQuery(
-                        new BiosTableHandle("signal", "_requests",
+                        new BiosTableHandle(SCHEMA_SIGNALS, "_requests",
                             System.currentTimeMillis(), -300000L, 300L, null, null, null),
                         null, new BiosAggregate[]{new BiosAggregate("count", null)}));
+    }
+
+    private int getTotalRows(final ISqlResponse response)
+    {
+        int numRows = 0;
+        numRows += response.getRecords().size();
+        for (var window : response.getDataWindows()) {
+            numRows += window.getRecords().size();
+        }
+        return numRows;
     }
 
     /**
@@ -170,9 +178,16 @@ public class BiosClient
                 case BAD_INPUT:
                     throw new TrinoException(GENERIC_USER_ERROR, biosClientException.getMessage());
 
+                case SESSION_INACTIVE:
+                case CLIENT_CHANNEL_ERROR:
+                case SERVER_CONNECTION_FAILURE:
+                case SERVER_CHANNEL_ERROR:
+                case SERVICE_UNAVAILABLE:
+                case SERVICE_UNDEPLOYED:
                 case SESSION_EXPIRED:
                     if (doNotThrowIfRetryable) {
-                        logger.debug("Session expired: \n\n Attempting to create a new session...");
+                        logger.debug("Possibly retryable error code: %s. \n\n "
+                                + "Attempting to create a new session... \n", biosClientException.getCode());
                         session = Suppliers.memoize(sessionSupplier(biosConfig));
                         session.get();
                         return;
@@ -218,14 +233,14 @@ public class BiosClient
         return () -> {
             TenantConfig tenantConfig = null;
             try {
-                logger.debug("----------> bios network request: getTenant");
+                logger.debug("----------> bios network request : getTenant");
                 tenantConfig = client.getSession().getTenant(true, true);
             }
             catch (BiosClientException e) {
                 client.handleException(e, true);
                 // If handleException did not throw an exception, it means we can retry.
                 try {
-                    logger.debug("retrying ----------> bios network request: getTenant");
+                    logger.debug("retrying ----------> bios network request : getTenant");
                     tenantConfig = client.getSession().getTenant(true, true);
                 }
                 catch (BiosClientException e2) {
@@ -310,8 +325,11 @@ public class BiosClient
                 break;
         }
 
-        logger.debug("bios got: %s", query);
-        return dataCache.getUnchecked(query);
+        logger.debug("Request : %s", query);
+        var response = dataCache.getUnchecked(query);
+        logger.debug("Response: %d total rows in %d windows", getTotalRows(response),
+                response.getDataWindows().size());
+        return response;
     }
 
     private static Metric.MetricFinalSpecifier[] getAggregateMetrics(BiosAggregate[] aggregates)
@@ -393,15 +411,11 @@ public class BiosClient
                 return null;
         }
 
-        logger.debug("----------> bios network request: %s", query);
+        logger.debug("----------> bios network request : %s", query);
         ISqlResponse response = executeStatement(isqlStatement);
-        long firstWindowRecords = 0;
-        if (response.getDataWindows().size() > 0) {
-            firstWindowRecords = response.getDataWindows().get(0).getRecords().size();
-        }
-        logger.debug("<---------- bios network response: query returned %d records, %d windows "
-                        + "with %d records in first window",
-                response.getRecords().size(), response.getDataWindows().size(), firstWindowRecords);
+        logger.debug("<---------- bios network response: query returned %d records, %d windows, "
+                        + "%d total rows",
+                response.getRecords().size(), response.getDataWindows().size(), getTotalRows(response));
 
         return response;
     }
@@ -416,7 +430,7 @@ public class BiosClient
             handleException(e, true);
             // If handleException did not throw an exception, it means we can retry.
             try {
-                logger.debug("retrying ----------> bios network request: query");
+                logger.debug("retrying ----------> bios network request : query");
                 response = session.get().execute(statement);
             }
             catch (BiosClientException e2) {
@@ -428,7 +442,7 @@ public class BiosClient
 
     public List<String> getSchemaNames()
     {
-        return ImmutableList.of("context", "signal", "raw_signal");
+        return ImmutableList.of(SCHEMA_CONTEXTS, SCHEMA_SIGNALS, SCHEMA_RAW_SIGNALS);
     }
 
     public static String addRawSuffix(String tableName)
@@ -453,17 +467,17 @@ public class BiosClient
         List<String> tableNames = new ArrayList<>();
 
         switch (schemaName) {
-            case "signal":
+            case SCHEMA_SIGNALS:
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     tableNames.add(signalConfig.getName());
                 }
                 break;
-            case "raw_signal":
+            case SCHEMA_RAW_SIGNALS:
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     tableNames.add(addRawSuffix(signalConfig.getName()));
                 }
                 break;
-            case "context":
+            case SCHEMA_CONTEXTS:
                 for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
                     tableNames.add(contextConfig.getName());
                 }
@@ -492,10 +506,10 @@ public class BiosClient
         String defaultValue = null;
 
         switch (schemaName) {
-            case "signal":
-            case "raw_signal":
+            case SCHEMA_SIGNALS:
+            case SCHEMA_RAW_SIGNALS:
                 final String underlyingTableName;
-                if (schemaName.equals("signal")) {
+                if (schemaName.equals(SCHEMA_SIGNALS)) {
                     kind = BiosTableKind.SIGNAL;
                     underlyingTableName = tableName;
                 }
@@ -513,7 +527,7 @@ public class BiosClient
                     break;
                 }
                 break;
-            case "context":
+            case SCHEMA_CONTEXTS:
                 kind = BiosTableKind.CONTEXT;
                 timestampColumnName = COLUMN_CONTEXT_TIMESTAMP;
                 epochColumnName = COLUMN_CONTEXT_TIME_EPOCH_MS;
@@ -546,7 +560,7 @@ public class BiosClient
             columns.add(columnHandle);
         }
 
-        if (schemaName.equals("signal")) {
+        if (schemaName.equals(SCHEMA_SIGNALS)) {
             columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
             columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
 

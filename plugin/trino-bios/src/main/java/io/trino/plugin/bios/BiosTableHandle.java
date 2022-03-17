@@ -23,6 +23,9 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static io.trino.plugin.bios.BiosClient.SCHEMA_CONTEXTS;
+import static io.trino.plugin.bios.BiosClient.SCHEMA_RAW_SIGNALS;
+import static io.trino.plugin.bios.BiosClient.SCHEMA_SIGNALS;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
@@ -149,11 +152,11 @@ public class BiosTableHandle
     public BiosTableKind getTableKind()
     {
         switch (schemaName) {
-            case "context":
+            case SCHEMA_CONTEXTS:
                 return BiosTableKind.CONTEXT;
-            case "signal":
+            case SCHEMA_SIGNALS:
                 return BiosTableKind.SIGNAL;
-            case "raw_signal":
+            case SCHEMA_RAW_SIGNALS:
                 return BiosTableKind.RAW_SIGNAL;
             default:
                 throw new TrinoException(GENERIC_INTERNAL_ERROR,
