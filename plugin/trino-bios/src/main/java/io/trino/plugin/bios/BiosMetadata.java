@@ -206,13 +206,13 @@ public class BiosMetadata
     public Optional<ConstraintApplicationResult<ConnectorTableHandle>> applyFilter(ConnectorSession session, ConnectorTableHandle handle, Constraint constraint)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) handle;
+        Long timeRangeStart = tableHandle.getTimeRangeStart();
+        Long timeRangeDelta = tableHandle.getTimeRangeDelta();
+        Long windowSizeSeconds = tableHandle.getWindowSizeSeconds();
+        Long queryPeriodMinutes = tableHandle.getQueryPeriodMinutes();
+        Long queryPeriodOffsetMinutes = tableHandle.getQueryPeriodOffsetMinutes();
         boolean somePushdownApplied = false;
         Map<ColumnHandle, Domain> remainingDomains = new HashMap<>();
-        Long timeRangeStart = null;
-        Long timeRangeDelta = null;
-        Long windowSizeSeconds = null;
-        Long queryPeriodMinutes = null;
-        Long queryPeriodOffsetMinutes = null;
 
         if (constraint.getSummary().getDomains().isEmpty()) {
             return Optional.empty();

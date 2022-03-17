@@ -57,6 +57,8 @@ public class BiosRecordCursor
     private final BiosTableHandle tableHandle;
     private final List<BiosColumnHandle> columnHandles;
     private final BiosSplit biosSplit;
+    private final long timeRangeStart;
+    private final long timeRangeEnd;
 
     private Iterator<DataWindow> windows;
     private Iterator<Record> records;
@@ -70,6 +72,10 @@ public class BiosRecordCursor
         this.tableHandle = requireNonNull(tableHandle, "tableHandle is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
         this.biosSplit = requireNonNull(biosSplit, "biosSplit is null");
+
+        this.timeRangeStart = biosClient.getEffectiveTimeRangeStart(tableHandle);
+        this.timeRangeEnd =
+                this.timeRangeStart + biosClient.getEffectiveTimeRangeDelta(tableHandle);
     }
 
     @Override
@@ -94,6 +100,11 @@ public class BiosRecordCursor
     private boolean isWindowed()
     {
         return BiosTableKind.getTableKind(tableHandle.getSchemaName()) != BiosTableKind.CONTEXT;
+    }
+
+    private boolean isWithinRequestedTimeRange(long recordTime)
+    {
+        return ((recordTime >= timeRangeStart) && (recordTime < timeRangeEnd));
     }
 
     @Override
@@ -123,12 +134,10 @@ public class BiosRecordCursor
 
             if (isWindowed()) {
                 windows = response.getDataWindows().iterator();
-                if (windows.hasNext()) {
-                    currentWindow = windows.next();
-                    records = currentWindow.getRecords().iterator();
-                }
+                moveToNextApplicableWindow();
             }
             else {
+                // Non-windowed results are for contexts, which do not have time range constraints.
                 List<Record> data = new ArrayList<>(response.getRecords());
                 records = data.iterator();
                 logger.debug("     %d records", data.size());
@@ -146,14 +155,10 @@ public class BiosRecordCursor
                 return true;
             }
             else {
-                // This window has run out of records; use the next window that has records.
-                while (windows.hasNext()) {
-                    currentWindow = windows.next();
-                    records = currentWindow.getRecords().iterator();
-                    if (records.hasNext()) {
-                        currentRecord = records.next();
-                        return true;
-                    }
+                // This window has run out of records; use the next window that is within the
+                // requested time range and has records.
+                if (moveToNextApplicableWindow()) {
+                    return true;
                 }
                 // There are no more windows, so no more records left.
                 records = null;
@@ -170,6 +175,22 @@ public class BiosRecordCursor
                 return false;
             }
         }
+    }
+
+    private boolean moveToNextApplicableWindow()
+    {
+        while (windows.hasNext()) {
+            currentWindow = windows.next();
+            if (!isWithinRequestedTimeRange(currentWindow.getWindowBeginTime())) {
+                continue;
+            }
+            records = currentWindow.getRecords().iterator();
+            if (records.hasNext()) {
+                currentRecord = records.next();
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

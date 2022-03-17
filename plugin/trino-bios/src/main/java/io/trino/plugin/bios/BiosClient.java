@@ -250,6 +250,65 @@ public class BiosClient
         };
     }
 
+    public long getCurrentTimeWithLag(BiosTableHandle tableHandle)
+    {
+        long lag = (tableHandle.getTableKind() == BiosTableKind.SIGNAL) ?
+                biosConfig.getFeatureLagSeconds() * 1000 :
+                biosConfig.getRawSignalLagSeconds() * 1000;
+        return System.currentTimeMillis() - lag;
+    }
+
+    public long getEffectiveTimeRangeStart(BiosTableHandle tableHandle)
+    {
+        long currentTimeWithLag = getCurrentTimeWithLag(tableHandle);
+        long start;
+
+        if (tableHandle.getTimeRangeStart() != null) {
+            start = tableHandle.getTimeRangeStart();
+        }
+        else {
+            if (tableHandle.getQueryPeriodOffsetMinutes() != null) {
+                start = currentTimeWithLag - tableHandle.getQueryPeriodOffsetMinutes() * 60 * 1000;
+            }
+            else {
+                start = currentTimeWithLag;
+            }
+        }
+
+        // Return the lower bound of the time range.
+        long delta = getEffectiveTimeRangeDeltaSigned(tableHandle);
+        if (delta >= 0) {
+            return start;
+        }
+        else {
+            return start + delta;
+        }
+    }
+
+    public long getEffectiveTimeRangeDelta(BiosTableHandle tableHandle)
+    {
+        long delta = getEffectiveTimeRangeDeltaSigned(tableHandle);
+        return Math.abs(delta);
+    }
+
+    private long getEffectiveTimeRangeDeltaSigned(BiosTableHandle tableHandle)
+    {
+        long delta;
+
+        if (tableHandle.getTimeRangeDelta() != null) {
+            delta = tableHandle.getTimeRangeDelta();
+        }
+        else {
+            if (tableHandle.getQueryPeriodMinutes() != null) {
+                delta = -1000 * 60 * tableHandle.getQueryPeriodMinutes();
+            }
+            else {
+                delta = -1000 * biosConfig.getDefaultTimeRangeDeltaSeconds();
+            }
+        }
+        return delta;
+    }
+
     // Get window size - relevant for features; use placeholder 1 for raw signals / contexts.
     public long getEffectiveWindowSizeSeconds(BiosTableHandle tableHandle)
     {

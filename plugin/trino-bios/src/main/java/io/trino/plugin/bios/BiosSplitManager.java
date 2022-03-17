@@ -86,56 +86,19 @@ public class BiosSplitManager
         //         constraint.getSummary().toString(), constraint.predicate().toString(),
         //         Arrays.toString(constraint.getPredicateColumns().stream().toArray()));
 
-        long lag = (tableHandle.getTableKind() == BiosTableKind.SIGNAL) ?
-                biosConfig.getFeatureLagSeconds() * 1000 :
-                biosConfig.getRawSignalLagSeconds() * 1000;
-        long currentTimeWithLag = System.currentTimeMillis() - lag;
-
         // -----------------------------------------------------------------------------------------
-        // ** First, normalize time range: there are multiple parts to it below.
-        long start;
-        long delta;
+        // ** First, normalize time range.
 
-        // * Use defaults if not present.
-        if (tableHandle.getTimeRangeStart() != null) {
-            start = tableHandle.getTimeRangeStart();
-        }
-        else {
-            if (tableHandle.getQueryPeriodOffsetMinutes() != null) {
-                start = currentTimeWithLag - tableHandle.getQueryPeriodOffsetMinutes() * 60 * 1000;
-            }
-            else {
-                start = currentTimeWithLag;
-            }
-        }
-        if (tableHandle.getTimeRangeDelta() != null) {
-            delta = tableHandle.getTimeRangeDelta();
-        }
-        else {
-            if (tableHandle.getQueryPeriodMinutes() != null) {
-                delta = -1000 * 60 * tableHandle.getQueryPeriodMinutes();
-            }
-            else {
-                delta = -1000 * biosConfig.getDefaultTimeRangeDeltaSeconds();
-            }
-        }
+        // * Get the time range requested (implicitly or explicitly) by the user.
+        long start = biosClient.getEffectiveTimeRangeStart(tableHandle);
+        long delta = biosClient.getEffectiveTimeRangeDelta(tableHandle);
 
-        // * Make delta positive.
-        if (delta < 0) {
-            start = start + delta;
-            delta = -delta;
-        }
-
-        // * Align to a minimum alignment size.
-        final var minimumAlignment = biosConfig.getDataAlignmentSeconds() * 1000;
-        start = floor(start, minimumAlignment);
-        delta = ceiling(delta, minimumAlignment);
-
-        // * Remove future times if present, taking care of alignment.
-        // We need to do this after delta is aligned (above).
+        // * Remove future times if present.
+        long currentTimeWithLag = biosClient.getCurrentTimeWithLag(tableHandle);
         if (start > currentTimeWithLag - delta) {
-            start = floor(currentTimeWithLag - delta, minimumAlignment);
+            start = currentTimeWithLag - delta;
         }
+        long end = start + delta;
 
         // -----------------------------------------------------------------------------------------
         // ** Next, create splits with the ranges that we want to use for actual queries again bios.
@@ -151,7 +114,6 @@ public class BiosSplitManager
         // All splits except possibly the latest one should be perfectly aligned to split size.
         // The latest split should be smaller than the full split size if any part of it is in the
         // future. When deciding what is in the future, also consider the lag time.
-        long end = start + delta;
 
         long nextStart = floor(start, splitSize);
         while (nextStart < end) {
@@ -163,7 +125,12 @@ public class BiosSplitManager
             else {
                 // This split has some part in the future. Limit it to the current time (with lag)
                 // to avoid caching non-existent rows for future times.
-                currentSplitSize = end - nextStart;
+                // To get good caching, also align it to a minimum alignment size.
+                final var minimumAlignment = biosConfig.getDataAlignmentSeconds() * 1000;
+                currentSplitSize = floor(end - nextStart, minimumAlignment);
+                if (currentSplitSize == 0) {
+                    break;
+                }
             }
             splits.add(new BiosSplit(nextStart, currentSplitSize));
             nextStart += currentSplitSize;

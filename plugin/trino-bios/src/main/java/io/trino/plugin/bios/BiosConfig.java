@@ -26,7 +26,6 @@ public class BiosConfig
     private String password;
     private Long metadataCacheSeconds;
     private Long dataCacheSeconds;
-    private Long dataAlignmentSeconds;
     private Long dataCacheSizeInRows;
     private Long defaultTimeRangeDeltaSeconds;
     private Long defaultWindowSizeSeconds;
@@ -34,6 +33,7 @@ public class BiosConfig
     private Long featureLagSeconds;
     private Long rawSignalSplitSizeSeconds;
     private Long featureSplitSizeSeconds;
+    private Long dataAlignmentSeconds;
 
     public URI getUrl()
     {
@@ -94,18 +94,6 @@ public class BiosConfig
     public BiosConfig setDataCacheSeconds(Long dataCacheSeconds)
     {
         this.dataCacheSeconds = dataCacheSeconds;
-        return this;
-    }
-
-    public Long getDataAlignmentSeconds()
-    {
-        return dataAlignmentSeconds != null ? dataAlignmentSeconds : 5 * 60L;
-    }
-
-    @Config("bios.dataAlignmentSeconds")
-    public BiosConfig setDataAlignmentSeconds(Long dataAlignmentSeconds)
-    {
-        this.dataAlignmentSeconds = dataAlignmentSeconds;
         return this;
     }
 
@@ -190,6 +178,18 @@ public class BiosConfig
     public BiosConfig setFeatureSplitSizeSeconds(Long featureSplitSizeSeconds)
     {
         this.featureSplitSizeSeconds = featureSplitSizeSeconds;
+        return this;
+    }
+
+    public Long getDataAlignmentSeconds()
+    {
+        return dataAlignmentSeconds != null ? dataAlignmentSeconds : 5 * 60L;
+    }
+
+    @Config("bios.dataAlignmentSeconds")
+    public BiosConfig setDataAlignmentSeconds(Long dataAlignmentSeconds)
+    {
+        this.dataAlignmentSeconds = dataAlignmentSeconds;
         return this;
     }
 }

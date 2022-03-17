@@ -157,10 +157,14 @@ class BiosConfig << (P, orange) >> {
     + ** String password; **
     + Long metadataCacheSeconds;
     + Long dataCacheSeconds;
-    + Long dataAlignmentSeconds;
     + Long dataCacheSizeInRows;
     + Long defaultTimeRangeDeltaSeconds;
     + Long defaultWindowSizeSeconds;
+    + Long rawSignalLagSeconds;
+    + Long featureLagSeconds;
+    + Long rawSignalSplitSizeSeconds;
+    + Long featureSplitSizeSeconds;
+    + Long dataAlignmentSeconds;
 }
 
 interface ColumnHandle <<Trino>> {
