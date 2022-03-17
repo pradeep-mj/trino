@@ -45,6 +45,7 @@ public class BiosRecordSetProvider
     public RecordSet getRecordSet(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, ConnectorTableHandle table, List<? extends ColumnHandle> columns)
     {
         BiosTableHandle tableHandle = (BiosTableHandle) table;
+        BiosSplit biosSplit = (BiosSplit) split;
 
         List<BiosColumnHandle> biosColumnHandles = columns.stream()
                 .map(column -> (BiosColumnHandle) column)
@@ -54,6 +55,6 @@ public class BiosRecordSetProvider
         //         tableHandle.toSchemaTableName(), session.getQueryId(),
         //         session.getSource(), session.getStart(), session.getTraceToken());
 
-        return new BiosRecordSet(biosClient, tableHandle, biosColumnHandles);
+        return new BiosRecordSet(biosClient, tableHandle, biosColumnHandles, biosSplit);
     }
 }

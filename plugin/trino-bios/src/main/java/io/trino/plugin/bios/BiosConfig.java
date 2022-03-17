@@ -30,7 +30,10 @@ public class BiosConfig
     private Long dataCacheSizeInRows;
     private Long defaultTimeRangeDeltaSeconds;
     private Long defaultWindowSizeSeconds;
-    private Long defaultFeatureLagSeconds;
+    private Long rawSignalLagSeconds;
+    private Long featureLagSeconds;
+    private Long rawSignalSplitSizeSeconds;
+    private Long featureSplitSizeSeconds;
 
     public URI getUrl()
     {
@@ -72,7 +75,7 @@ public class BiosConfig
 
     public Long getMetadataCacheSeconds()
     {
-        return metadataCacheSeconds != null ? metadataCacheSeconds : 900L;
+        return metadataCacheSeconds != null ? metadataCacheSeconds : 15 * 60L;
     }
 
     @Config("bios.metadataCacheSeconds")
@@ -84,7 +87,7 @@ public class BiosConfig
 
     public Long getDataCacheSeconds()
     {
-        return dataCacheSeconds != null ? dataCacheSeconds : 900L;
+        return dataCacheSeconds != null ? dataCacheSeconds : 15 * 60L;
     }
 
     @Config("bios.dataCacheSeconds")
@@ -96,7 +99,7 @@ public class BiosConfig
 
     public Long getDataAlignmentSeconds()
     {
-        return dataAlignmentSeconds != null ? dataAlignmentSeconds : 300L;
+        return dataAlignmentSeconds != null ? dataAlignmentSeconds : 5 * 60L;
     }
 
     @Config("bios.dataAlignmentSeconds")
@@ -108,7 +111,7 @@ public class BiosConfig
 
     public Long getDataCacheSizeInRows()
     {
-        return dataCacheSizeInRows != null ? dataCacheSizeInRows : 1000000L;
+        return dataCacheSizeInRows != null ? dataCacheSizeInRows : 1000 * 1000L;
     }
 
     @Config("bios.dataCacheSizeInRows")
@@ -120,7 +123,7 @@ public class BiosConfig
 
     public Long getDefaultTimeRangeDeltaSeconds()
     {
-        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 900L;
+        return defaultTimeRangeDeltaSeconds != null ? defaultTimeRangeDeltaSeconds : 15 * 60L;
     }
 
     @Config("bios.defaultTimeRangeDeltaSeconds")
@@ -132,7 +135,7 @@ public class BiosConfig
 
     public Long getDefaultWindowSizeSeconds()
     {
-        return defaultWindowSizeSeconds != null ? defaultWindowSizeSeconds : 300L;
+        return defaultWindowSizeSeconds != null ? defaultWindowSizeSeconds : 5 * 60L;
     }
 
     @Config("bios.defaultWindowSizeSeconds")
@@ -142,15 +145,51 @@ public class BiosConfig
         return this;
     }
 
-    public Long getDefaultFeatureLagSeconds()
+    public Long getRawSignalLagSeconds()
     {
-        return defaultFeatureLagSeconds != null ? defaultFeatureLagSeconds : 40L;
+        return rawSignalLagSeconds != null ? rawSignalLagSeconds : 2L;
     }
 
-    @Config("bios.defaultFeatureLagSeconds")
-    public BiosConfig setDefaultFeatureLagSeconds(Long defaultFeatureLagSeconds)
+    @Config("bios.rawSignalLagSeconds")
+    public BiosConfig setRawSignalLagSeconds(Long rawSignalLagSeconds)
     {
-        this.defaultFeatureLagSeconds = defaultFeatureLagSeconds;
+        this.rawSignalLagSeconds = rawSignalLagSeconds;
+        return this;
+    }
+
+    public Long getFeatureLagSeconds()
+    {
+        return featureLagSeconds != null ? featureLagSeconds : 40L;
+    }
+
+    @Config("bios.featureLagSeconds")
+    public BiosConfig setFeatureLagSeconds(Long featureLagSeconds)
+    {
+        this.featureLagSeconds = featureLagSeconds;
+        return this;
+    }
+
+    public Long getRawSignalSplitSizeSeconds()
+    {
+        return rawSignalSplitSizeSeconds != null ? rawSignalSplitSizeSeconds : 5 * 60L;
+    }
+
+    @Config("bios.rawSignalSplitSizeSeconds")
+    public BiosConfig setRawSignalSplitSizeSeconds(Long rawSignalSplitSizeSeconds)
+    {
+        this.rawSignalSplitSizeSeconds = rawSignalSplitSizeSeconds;
+        return this;
+    }
+
+    public Long getFeatureSplitSizeSeconds()
+    {
+        return featureSplitSizeSeconds != null ? featureSplitSizeSeconds : 24 * 60 * 60L;
+    }
+
+    @Config("bios.featureSplitSizeSeconds")
+    public BiosConfig setFeatureSplitSizeSeconds(Long featureSplitSizeSeconds)
+    {
+        this.featureSplitSizeSeconds = featureSplitSizeSeconds;
         return this;
     }
 }

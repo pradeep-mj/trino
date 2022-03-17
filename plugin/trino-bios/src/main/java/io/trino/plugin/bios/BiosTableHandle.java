@@ -15,7 +15,6 @@ package io.trino.plugin.bios;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.SchemaTableName;
 
@@ -23,23 +22,19 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static io.trino.plugin.bios.BiosClient.SCHEMA_CONTEXTS;
-import static io.trino.plugin.bios.BiosClient.SCHEMA_RAW_SIGNALS;
-import static io.trino.plugin.bios.BiosClient.SCHEMA_SIGNALS;
-import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static java.util.Objects.requireNonNull;
 
-public class BiosTableHandle
+public final class BiosTableHandle
         implements ConnectorTableHandle
 {
-    protected final String schemaName;
-    protected final String tableName;
-    protected Long timeRangeStart;
-    protected Long timeRangeDelta;
-    protected Long windowSizeSeconds;
-    protected Long queryPeriodMinutes;
-    protected Long queryPeriodOffsetMinutes;
-    protected String[] groupBy;
+    private final String schemaName;
+    private final String tableName;
+    private Long timeRangeStart;
+    private Long timeRangeDelta;
+    private Long windowSizeSeconds;
+    private Long queryPeriodMinutes;
+    private Long queryPeriodOffsetMinutes;
+    private String[] groupBy;
 
     @JsonCreator
     public BiosTableHandle(
@@ -70,12 +65,6 @@ public class BiosTableHandle
         this.tableName = requireNonNull(tableName, "tableName is null");
     }
 
-    public BiosTableHandle duplicate()
-    {
-        return new BiosTableHandle(schemaName, tableName, timeRangeStart, timeRangeDelta,
-                windowSizeSeconds, queryPeriodMinutes, queryPeriodOffsetMinutes, groupBy);
-    }
-
     @JsonProperty
     public String getSchemaName()
     {
@@ -88,25 +77,10 @@ public class BiosTableHandle
         return tableName;
     }
 
-    public String getUnderlyingTableName()
-    {
-        if (getTableKind() == BiosTableKind.RAW_SIGNAL) {
-            return BiosClient.removeRawSuffix(getTableName());
-        }
-        else {
-            return getTableName();
-        }
-    }
-
     @JsonProperty
     public Long getTimeRangeStart()
     {
         return timeRangeStart;
-    }
-
-    public void setTimeRangeStart(Long timeRangeStart)
-    {
-        this.timeRangeStart = timeRangeStart;
     }
 
     @JsonProperty
@@ -115,20 +89,10 @@ public class BiosTableHandle
         return timeRangeDelta;
     }
 
-    public void setTimeRangeDelta(Long timeRangeDelta)
-    {
-        this.timeRangeDelta = timeRangeDelta;
-    }
-
     @JsonProperty
     public Long getWindowSizeSeconds()
     {
         return windowSizeSeconds;
-    }
-
-    public void setWindowSizeSeconds(Long windowSizeSeconds)
-    {
-        this.windowSizeSeconds = windowSizeSeconds;
     }
 
     @JsonProperty
@@ -149,24 +113,14 @@ public class BiosTableHandle
         return groupBy;
     }
 
-    public BiosTableKind getTableKind()
-    {
-        switch (schemaName) {
-            case SCHEMA_CONTEXTS:
-                return BiosTableKind.CONTEXT;
-            case SCHEMA_SIGNALS:
-                return BiosTableKind.SIGNAL;
-            case SCHEMA_RAW_SIGNALS:
-                return BiosTableKind.RAW_SIGNAL;
-            default:
-                throw new TrinoException(GENERIC_INTERNAL_ERROR,
-                        "bi(OS) was given invalid schema name: " + schemaName);
-        }
-    }
-
     public SchemaTableName toSchemaTableName()
     {
         return new SchemaTableName(schemaName, tableName);
+    }
+
+    public BiosTableKind getTableKind()
+    {
+        return BiosTableKind.getTableKind(schemaName);
     }
 
     @Override

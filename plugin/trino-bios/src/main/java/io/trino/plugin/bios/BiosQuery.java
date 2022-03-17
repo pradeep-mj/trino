@@ -15,33 +15,91 @@ package io.trino.plugin.bios;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.trino.spi.connector.SchemaTableName;
 
 import java.util.Arrays;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static java.util.Objects.requireNonNull;
 
 public final class BiosQuery
 {
-    private final BiosTableHandle tableHandle;
+    private final String schemaName;
+    private final String tableName;
+    private final Long timeRangeStart;
+    private final Long timeRangeDelta;
+    private final Long windowSizeSeconds;
+    private final String[] groupBy;
     private String[] attributes;
     private final BiosAggregate[] aggregates;
 
     @JsonCreator
     public BiosQuery(
-            @JsonProperty("tableHandle") BiosTableHandle tableHandle,
+            @JsonProperty("schemaName") String schemaName,
+            @JsonProperty("tableName") String tableName,
+            @JsonProperty("timeRangeStart") Long timeRangeStart,
+            @JsonProperty("timeRangeDelta") Long timeRangeDelta,
+            @JsonProperty("windowSizeSeconds") Long windowSizeSeconds,
+            @JsonProperty("groupBy") String[] groupBy,
             @JsonProperty("attributes") String[] attributes,
             @JsonProperty("aggregates") BiosAggregate[] aggregates)
     {
-        this.tableHandle = tableHandle;
-        this.attributes = attributes;
-        this.aggregates = aggregates;
+        this.schemaName = requireNonNull(schemaName, "schemaName is null");
+        this.tableName = requireNonNull(tableName, "tableName is null");
+        this.timeRangeStart = timeRangeStart;
+        this.timeRangeDelta = timeRangeDelta;
+        this.windowSizeSeconds = windowSizeSeconds;
+        this.groupBy = nullIfEmpty(groupBy);
+        this.attributes = nullIfEmpty(attributes);
+        this.aggregates = nullIfEmpty(aggregates);
+    }
+
+    private <T> T[] nullIfEmpty(T[] in)
+    {
+        if (in == null) {
+            return null;
+        }
+        if (in.length == 0) {
+            return null;
+        }
+        return in;
     }
 
     @JsonProperty
-    public BiosTableHandle getTableHandle()
+    public String getSchemaName()
     {
-        return tableHandle;
+        return schemaName;
+    }
+
+    @JsonProperty
+    public String getTableName()
+    {
+        return tableName;
+    }
+
+    @JsonProperty
+    public Long getTimeRangeStart()
+    {
+        return timeRangeStart;
+    }
+
+    @JsonProperty
+    public Long getTimeRangeDelta()
+    {
+        return timeRangeDelta;
+    }
+
+    @JsonProperty
+    public Long getWindowSizeSeconds()
+    {
+        return windowSizeSeconds;
+    }
+
+    @JsonProperty
+    public String[] getGroupBy()
+    {
+        return groupBy;
     }
 
     @JsonProperty
@@ -61,11 +119,27 @@ public final class BiosQuery
         return aggregates;
     }
 
+    public BiosTableKind getTableKind()
+    {
+        return BiosTableKind.getTableKind(schemaName);
+    }
+
+    public String getUnderlyingTableName()
+    {
+        if (BiosTableKind.getTableKind(schemaName) == BiosTableKind.RAW_SIGNAL) {
+            return BiosClient.removeRawSuffix(getTableName());
+        }
+        else {
+            return getTableName();
+        }
+    }
+
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableHandle.hashCode(), Arrays.hashCode(attributes),
-                Arrays.hashCode(aggregates));
+        return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta,
+                windowSizeSeconds, Arrays.hashCode(groupBy),
+                Arrays.hashCode(attributes), Arrays.hashCode(aggregates));
     }
 
     @Override
@@ -79,7 +153,12 @@ public final class BiosQuery
         }
 
         BiosQuery other = (BiosQuery) obj;
-        return Objects.equals(this.tableHandle, other.tableHandle) &&
+        return Objects.equals(this.schemaName, other.schemaName) &&
+                Objects.equals(this.tableName, other.tableName) &&
+                Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
+                Objects.equals(this.timeRangeDelta, other.timeRangeDelta) &&
+                Objects.equals(this.windowSizeSeconds, other.windowSizeSeconds) &&
+                Arrays.equals(this.groupBy, other.groupBy) &&
                 Arrays.equals(this.attributes, other.attributes) &&
                 Arrays.equals(this.aggregates, other.aggregates);
     }
@@ -88,7 +167,11 @@ public final class BiosQuery
     public String toString()
     {
         return toStringHelper("query")
-                .add("", tableHandle.toString())
+                .add("", new SchemaTableName(schemaName, tableName))
+                .add("start", timeRangeStart)
+                .add("delta", timeRangeDelta)
+                .add("window", windowSizeSeconds)
+                .add("groupBy", groupBy)
                 .add("aggregates", aggregates)
                 .omitNullValues()
                 .toString();

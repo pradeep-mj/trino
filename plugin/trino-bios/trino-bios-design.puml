@@ -84,7 +84,7 @@ interface ConnectorSplitManager <<Trino>> {
     getSplits ()
 }
 
-class BiosSplitManager <<Singleton>> implements ConnectorSplitManager {
+class BiosSplitManager <<Singleton>> <<Major>> implements ConnectorSplitManager {
     # @Inject Cons (biosClient)
 }
 

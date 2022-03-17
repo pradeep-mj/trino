@@ -378,7 +378,7 @@ public class BiosMetadata
                 if (aggregate.getInputs().size() != 1) {
                     throw new TrinoException(GENERIC_USER_ERROR, aggregate.getFunctionName() +
                             " requires exactly 1 input, got " +
-                            String.valueOf(aggregate.getInputs().size()));
+                            aggregate.getInputs().size());
                 }
                 input = (Variable) aggregate.getInputs().get(0);
                 name = aggregate.getFunctionName().toLowerCase(Locale.getDefault()) + "(" +
@@ -401,7 +401,7 @@ public class BiosMetadata
         }
         var outTableHandle = new BiosTableHandle(tableHandle.getSchemaName(),
                 tableHandle.getTableName(),
-                tableHandle.getTimeRangeStart(), tableHandle.timeRangeDelta,
+                tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta(),
                 tableHandle.getWindowSizeSeconds(), tableHandle.getQueryPeriodMinutes(),
                 tableHandle.getQueryPeriodOffsetMinutes(), groupBy);
 

@@ -26,18 +26,28 @@ import static java.util.Objects.requireNonNull;
 public class BiosSplit
         implements ConnectorSplit
 {
-    private final String tableName;
+    private final Long timeRangeStart;
+    private final Long timeRangeDelta;
 
     @JsonCreator
-    public BiosSplit(@JsonProperty("tableName") String tableName)
+    public BiosSplit(
+            @JsonProperty("timeRangeStart") Long timeRangeStart,
+            @JsonProperty("timeRangeDelta") Long timeRangeDelta)
     {
-        this.tableName = requireNonNull(tableName, "tableName is null");
+        this.timeRangeStart = requireNonNull(timeRangeStart);
+        this.timeRangeDelta = requireNonNull(timeRangeDelta);
     }
 
     @JsonProperty
-    public String getTableName()
+    public Long getTimeRangeStart()
     {
-        return tableName;
+        return timeRangeStart;
+    }
+
+    @JsonProperty
+    public Long getTimeRangeDelta()
+    {
+        return timeRangeDelta;
     }
 
     @Override

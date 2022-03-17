@@ -28,28 +28,28 @@ public class BiosRecordSet
     private final BiosClient biosClient;
     private final BiosTableHandle tableHandle;
     private final List<BiosColumnHandle> columnHandles;
-    private final List<Type> columnTypes;
+    private final BiosSplit biosSplit;
 
     public BiosRecordSet(BiosClient biosClient, BiosTableHandle tableHandle,
-                         List<BiosColumnHandle> columnHandles)
+                         List<BiosColumnHandle> columnHandles, BiosSplit biosSplit)
     {
         this.biosClient = requireNonNull(biosClient, "biosClient is null");
         this.tableHandle = requireNonNull(tableHandle, "statement is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
-        this.columnTypes = columnHandles.stream()
-                .map(BiosColumnHandle::getColumnType)
-                .collect(Collectors.toUnmodifiableList());
+        this.biosSplit = requireNonNull(biosSplit, "biosSplit is null");
     }
 
     @Override
     public List<Type> getColumnTypes()
     {
-        return columnTypes;
+        return columnHandles.stream()
+                .map(BiosColumnHandle::getColumnType)
+                .collect(Collectors.toUnmodifiableList());
     }
 
     @Override
     public RecordCursor cursor()
     {
-        return new BiosRecordCursor(biosClient, tableHandle, columnHandles);
+        return new BiosRecordCursor(biosClient, tableHandle, columnHandles, biosSplit);
     }
 }

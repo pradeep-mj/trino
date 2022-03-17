@@ -56,18 +56,20 @@ public class BiosRecordCursor
     private final BiosClient biosClient;
     private final BiosTableHandle tableHandle;
     private final List<BiosColumnHandle> columnHandles;
+    private final BiosSplit biosSplit;
+
     private Iterator<DataWindow> windows;
     private Iterator<Record> records;
     private DataWindow currentWindow;
-    private Long currentWindowNum;
     private Record currentRecord;
 
     public BiosRecordCursor(BiosClient biosClient, BiosTableHandle tableHandle,
-                            List<BiosColumnHandle> columnHandles)
+                            List<BiosColumnHandle> columnHandles, BiosSplit biosSplit)
     {
         this.biosClient = requireNonNull(biosClient, "biosClient is null");
-        this.tableHandle = requireNonNull(tableHandle, "statement is null");
+        this.tableHandle = requireNonNull(tableHandle, "tableHandle is null");
         this.columnHandles = requireNonNull(columnHandles, "columnHandles is null");
+        this.biosSplit = requireNonNull(biosSplit, "biosSplit is null");
     }
 
     @Override
@@ -91,7 +93,7 @@ public class BiosRecordCursor
 
     private boolean isWindowed()
     {
-        return tableHandle.getTableKind() != BiosTableKind.CONTEXT;
+        return BiosTableKind.getTableKind(tableHandle.getSchemaName()) != BiosTableKind.CONTEXT;
     }
 
     @Override
@@ -113,14 +115,16 @@ public class BiosRecordCursor
                 aggregates = null;
             }
 
-            BiosQuery query = new BiosQuery(tableHandle.duplicate(), attributes, aggregates);
+            BiosQuery query = new BiosQuery(tableHandle.getSchemaName(), tableHandle.getTableName(),
+                    biosSplit.getTimeRangeStart(), biosSplit.getTimeRangeDelta(),
+                    biosClient.getEffectiveWindowSizeSeconds(tableHandle),
+                    tableHandle.getGroupBy(), attributes, aggregates);
             ISqlResponse response = biosClient.getQueryResponse(query);
 
             if (isWindowed()) {
                 windows = response.getDataWindows().iterator();
                 if (windows.hasNext()) {
                     currentWindow = windows.next();
-                    currentWindowNum = 0L;
                     records = currentWindow.getRecords().iterator();
                 }
             }
@@ -145,7 +149,6 @@ public class BiosRecordCursor
                 // This window has run out of records; use the next window that has records.
                 while (windows.hasNext()) {
                     currentWindow = windows.next();
-                    currentWindowNum++;
                     records = currentWindow.getRecords().iterator();
                     if (records.hasNext()) {
                         currentRecord = records.next();
@@ -240,15 +243,12 @@ public class BiosRecordCursor
                     currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asString());
         }
         else if (type.equals(VARBINARY)) {
-            // TODO: Enable this after Bios Java SDK supports blob data types
-            // return Slices.wrappedBuffer(
-            //         currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asByteArray());
             return Slices.EMPTY_SLICE;
         }
         else {
-            checkArgument(false, "Expected field %s (%s) to be type VARCHAR or VARBINARY, but is %s",
-                    field, columnHandles.get(field).getColumnName(), type);
-            return null;
+            throw new IllegalArgumentException(String.format(
+                    "Expected field %s (%s) to be type VARCHAR or VARBINARY, but is %s", field,
+                    columnHandles.get(field).getColumnName(), type));
         }
     }
 

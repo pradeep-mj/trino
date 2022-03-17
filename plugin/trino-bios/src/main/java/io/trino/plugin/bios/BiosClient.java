@@ -65,6 +65,7 @@ import static io.trino.spi.type.VarbinaryType.VARBINARY;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
 
+@SuppressWarnings("NullableProblems")
 public class BiosClient
 {
     public static final String RAW_SIGNAL_TABLE_NAME_SUFFIX = "_raw";
@@ -99,7 +100,7 @@ public class BiosClient
         biosTypeMap.put("decimal", DOUBLE);
         biosTypeMap.put("blob", VARBINARY);
 
-        aggregates = new HashSet<String>(Arrays.asList("sum", "count", "min", "max",
+        aggregates = new HashSet<>(Arrays.asList("sum", "count", "min", "max",
                 "avg", "variance", "stddev", "skewness", "kurtosis", "sum2", "sum3", "sum4",
                 "median", "p0_01", "p0_1", "p1", "p10", "p25", "p50", "p75", "p90", "p99", "p99_9", "p99_99",
                 "distinctcount", "dclb1", "dcub1", "dclb2", "dcub2", "dclb3", "dcub3",
@@ -108,8 +109,8 @@ public class BiosClient
 
     private final BiosConfig biosConfig;
     private Supplier<Session> session;
-    private Supplier<TenantConfig> tenantConfig;
-    private NonEvictableLoadingCache<BiosQuery, ISqlResponse> dataCache;
+    private final Supplier<TenantConfig> tenantConfig;
+    private final NonEvictableLoadingCache<BiosQuery, ISqlResponse> dataCache;
 
     @Inject
     public BiosClient(BiosConfig config)
@@ -129,15 +130,9 @@ public class BiosClient
 
         dataCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
                 .maximumWeight(config.getDataCacheSizeInRows())
-                .weigher(new Weigher<BiosQuery, ISqlResponse>() {
-                    @Override
-                    public int weigh(BiosQuery query, ISqlResponse response)
-                    {
-                        return getTotalRows(response);
-                    }
-                })
+                .weigher((Weigher<BiosQuery, ISqlResponse>) (query, response) -> getTotalRows(response))
                 .expireAfterWrite(config.getDataCacheSeconds(), TimeUnit.SECONDS),
-                    new CacheLoader<BiosQuery, ISqlResponse>() {
+                    new CacheLoader<>() {
                         @Override
                         public ISqlResponse load(final BiosQuery query)
                         {
@@ -146,10 +141,8 @@ public class BiosClient
                     });
         // Execute one query to initialize bios SDK metrics.
         getQueryResponse(
-                new BiosQuery(
-                        new BiosTableHandle(SCHEMA_SIGNALS, "_requests",
-                            System.currentTimeMillis(), -300000L, 300L, null, null, null),
-                        null, new BiosAggregate[]{new BiosAggregate("count", null)}));
+                new BiosQuery(SCHEMA_SIGNALS, "_requests", System.currentTimeMillis(), -300000L,
+                        300L, null, null, new BiosAggregate[]{new BiosAggregate("count", null)}));
     }
 
     private int getTotalRows(final ISqlResponse response)
@@ -231,7 +224,7 @@ public class BiosClient
     private static Supplier<TenantConfig> tenantConfigSupplier(final BiosClient client)
     {
         return () -> {
-            TenantConfig tenantConfig = null;
+            TenantConfig tenantConfig;
             try {
                 logger.debug("----------> bios network request : getTenant");
                 tenantConfig = client.getSession().getTenant(true, true);
@@ -244,7 +237,8 @@ public class BiosClient
                     tenantConfig = client.getSession().getTenant(true, true);
                 }
                 catch (BiosClientException e2) {
-                    client.handleException(e2, false);
+                    client.handleException(e2, false);  // This should always throw.
+                    throw new RuntimeException("This should never happen - gap in bios connector");
                 }
             }
 
@@ -256,77 +250,44 @@ public class BiosClient
         };
     }
 
-    private Long floor(Long toBeFloored, long divisor)
+    // Get window size - relevant for features; use placeholder 1 for raw signals / contexts.
+    public long getEffectiveWindowSizeSeconds(BiosTableHandle tableHandle)
     {
-        if (toBeFloored == null) {
-            return null;
+        long out;
+        if (tableHandle.getWindowSizeSeconds() != null) {
+            out = tableHandle.getWindowSizeSeconds();
         }
-        return divisor * (long) (toBeFloored / divisor);
-    }
-
-    private Long ceiling(Long toBeCeiled, long divisor)
-    {
-        if (toBeCeiled == null) {
-            return null;
+        else {
+            if (tableHandle.getTableKind() == BiosTableKind.SIGNAL) {
+                out = biosConfig.getDefaultWindowSizeSeconds();
+            }
+            else {
+                out = 1;
+            }
         }
-        return (long) Math.signum(toBeCeiled) * divisor * (long) (((Math.abs(toBeCeiled) - 1) / divisor) + 1);
+        return out;
     }
 
     public ISqlResponse getQueryResponse(BiosQuery query)
     {
-        // Normalize query parameters.
-        // This populates missing pieces and makes the query object ready to be used in the
-        // response cache.
-
-        // Ensure time range params are set, calculating them or using defaults if necessary.
-        final var tableHandle = query.getTableHandle();
-        if (tableHandle.getTimeRangeStart() == null) {
-            if (tableHandle.getQueryPeriodOffsetMinutes() != null) {
-                tableHandle.setTimeRangeStart(System.currentTimeMillis() - tableHandle.getQueryPeriodOffsetMinutes() * 60 * 1000);
-            }
-            else {
-                tableHandle.setTimeRangeStart(System.currentTimeMillis() - biosConfig.getDefaultFeatureLagSeconds() * 1000);
-            }
-
-            if (tableHandle.getTimeRangeDelta() == null) {
-                if (tableHandle.getQueryPeriodMinutes() != null) {
-                    tableHandle.setTimeRangeDelta(-1000 * 60 * tableHandle.getQueryPeriodMinutes());
-                }
-                else {
-                    tableHandle.setTimeRangeDelta(-1000 * biosConfig.getDefaultTimeRangeDeltaSeconds());
-                }
-            }
-        }
-
-        // -- Set defaults for parameters not already set.
-        if (tableHandle.getWindowSizeSeconds() == null) {
-            tableHandle.setWindowSizeSeconds(biosConfig.getDefaultWindowSizeSeconds());
-        }
-
-        // -- Align time range and delta.
-        tableHandle.setTimeRangeStart(floor(tableHandle.getTimeRangeStart(),
-                biosConfig.getDataAlignmentSeconds() * 1000));
-        tableHandle.setTimeRangeDelta(ceiling(tableHandle.getTimeRangeDelta(),
-                biosConfig.getDataAlignmentSeconds() * 1000));
-
-        switch (tableHandle.getTableKind()) {
+        switch (query.getTableKind()) {
             case RAW_SIGNAL:
-                // -- For raw signals, get all attributes so that we don't have many queries with
+                // For raw signals, get all attributes so that we don't have many queries with
                 //      different subsets of attributes.
                 query.setAttributes(null);
                 break;
 
             case SIGNAL:
-                // -- Ensure main signals are only used for aggregated results, not raw rows.
-                if ((query.getAggregates() == null) || (query.getAggregates().length == 0)) {
+                // Ensure main signals are only used for aggregated results, not raw rows.
+                if (query.getAggregates() == null) {
                     throw new TrinoException(GENERIC_USER_ERROR, "Query has no aggregate or has "
                             + "unsupported complex transformation; use raw signals for such "
-                            + "queries. Query: " + query.toString());
+                            + "queries. Query: " + query);
                 }
                 break;
         }
 
-        logger.debug("Request : %s", query);
+        logger.debug("Request : query");
         var response = dataCache.getUnchecked(query);
         logger.debug("Response: %d total rows in %d windows", getTotalRows(response),
                 response.getDataWindows().size());
@@ -363,18 +324,17 @@ public class BiosClient
     {
         ISqlStatement isqlStatement;
 
-        final var tableHandle = query.getTableHandle();
-        switch (tableHandle.getTableKind()) {
+        switch (query.getTableKind()) {
             case CONTEXT:
                 // Contexts only support listing the primary key attribute directly.
                 // First get all the primary key values, and then issue a second query to get
                 // all the attributes for each of those keys.
 
-                var columns = getColumnHandles(tableHandle.getSchemaName(), tableHandle.getTableName());
+                var columns = getColumnHandles(query.getSchemaName(), query.getTableName());
                 String keyColumnName = columns.get(0).getColumnName();
 
                 ISqlStatement preliminaryStatement = ISqlStatement.select(keyColumnName)
-                        .fromContext(tableHandle.getUnderlyingTableName())
+                        .fromContext(query.getUnderlyingTableName())
                         .build();
 
                 ISqlResponse preliminaryResponse = executeStatement(preliminaryStatement);
@@ -383,7 +343,7 @@ public class BiosClient
                         .toArray(String[]::new);
 
                 isqlStatement = ISqlStatement.select()
-                        .fromContext(tableHandle.getUnderlyingTableName())
+                        .fromContext(query.getUnderlyingTableName())
                         .where(keys().in((java.lang.Object) keyValues))
                         .build();
                 break;
@@ -391,20 +351,20 @@ public class BiosClient
             case SIGNAL:
                 var partialStatement =
                         ISqlStatement.select(getAggregateMetrics(query.getAggregates()))
-                                .from(tableHandle.getUnderlyingTableName());
-                if ((tableHandle.getGroupBy() != null) && (tableHandle.getGroupBy().length > 0)) {
-                    partialStatement = partialStatement.groupBy(tableHandle.getGroupBy());
+                                .from(query.getUnderlyingTableName());
+                if (query.getGroupBy() != null) {
+                    partialStatement = partialStatement.groupBy(query.getGroupBy());
                 }
                 isqlStatement = partialStatement
-                        .window(tumbling(tableHandle.getWindowSizeSeconds(), TimeUnit.SECONDS))
-                        .snappedTimeRange(tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta())
+                        .window(tumbling(query.getWindowSizeSeconds(), TimeUnit.SECONDS))
+                        .snappedTimeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
                         .build();
                 break;
 
             case RAW_SIGNAL:
                 isqlStatement = ISqlStatement.select()
-                        .from(tableHandle.getUnderlyingTableName())
-                        .timeRange(tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta())
+                        .from(query.getUnderlyingTableName())
+                        .timeRange(query.getTimeRangeStart(), query.getTimeRangeDelta())
                         .build();
                 break;
 
@@ -423,7 +383,7 @@ public class BiosClient
 
     private ISqlResponse executeStatement(ISqlStatement statement)
     {
-        ISqlResponse response = null;
+        ISqlResponse response;
         try {
             response = session.get().execute(statement);
         }
@@ -436,6 +396,7 @@ public class BiosClient
             }
             catch (BiosClientException e2) {
                 handleException(e2, false);
+                throw new RuntimeException("This should never happen - gap in bios connector");
             }
         }
         return response;
@@ -499,12 +460,11 @@ public class BiosClient
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
 
-        BiosTableKind kind = null;
+        BiosTableKind kind;
         List<AttributeConfig> attributes = null;
         ImmutableList.Builder<BiosColumnHandle> columns = ImmutableList.builder();
-        String timestampColumnName = null;
-        String epochColumnName = null;
-        String defaultValue = null;
+        String timestampColumnName;
+        String epochColumnName;
 
         switch (schemaName) {
             case SCHEMA_SIGNALS:
@@ -540,11 +500,14 @@ public class BiosClient
                     break;
                 }
                 break;
+            default:
+                throw new RuntimeException("This should never happen - gap in bios connector");
         }
         if (attributes == null) {
             return null;
         }
 
+        String defaultValue;
         boolean isFirstAttribute = true;
         for (AttributeConfig attributeConfig : attributes) {
             String columnName = attributeConfig.getName();
