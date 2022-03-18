@@ -61,6 +61,7 @@ import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
+import static io.trino.spi.type.TimestampType.TIMESTAMP_SECONDS;
 import static io.trino.spi.type.VarbinaryType.VARBINARY;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.util.Objects.requireNonNull;
@@ -647,16 +648,19 @@ public class BiosClient
         }
 
         if (schemaName.equals(SCHEMA_SIGNALS)) {
+            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_SECONDS, null, false, null, null));
             columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
 
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
             columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
             columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
         }
         else {
             columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false, null, null));
             columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, null, null));
+
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
         }
 
         return columns.build();

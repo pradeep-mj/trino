@@ -30,7 +30,8 @@ public class BiosConfig
     private Long featureLagSeconds;
     private Long rawSignalSplitSizeSeconds;
     private Long featureSplitSizeSeconds;
-    private Long dataAlignmentSeconds;
+    private Long rawSignalAlignmentSeconds;
+    private Long featureAlignmentSeconds;
     private Long metadataCacheSeconds;
     private Long contextCacheSeconds;
     private Long rawSignalCacheSeconds;
@@ -103,7 +104,7 @@ public class BiosConfig
 
     public Long getRawSignalLagSeconds()
     {
-        return rawSignalLagSeconds != null ? rawSignalLagSeconds : 2L;
+        return rawSignalLagSeconds != null ? rawSignalLagSeconds : 5L;
     }
 
     @Config("bios.rawSignalLagSeconds")
@@ -149,15 +150,27 @@ public class BiosConfig
         return this;
     }
 
-    public Long getDataAlignmentSeconds()
+    public Long getRawSignalAlignmentSeconds()
     {
-        return dataAlignmentSeconds != null ? dataAlignmentSeconds : 5 * 60L;
+        return rawSignalAlignmentSeconds != null ? rawSignalAlignmentSeconds : 5 * 60L;
     }
 
-    @Config("bios.dataAlignmentSeconds")
-    public BiosConfig setDataAlignmentSeconds(Long dataAlignmentSeconds)
+    @Config("bios.rawSignalAlignmentSeconds")
+    public BiosConfig setRawSignalAlignmentSeconds(Long rawSignalAlignmentSeconds)
     {
-        this.dataAlignmentSeconds = dataAlignmentSeconds;
+        this.rawSignalAlignmentSeconds = rawSignalAlignmentSeconds;
+        return this;
+    }
+
+    public Long getFeatureAlignmentSeconds()
+    {
+        return featureAlignmentSeconds != null ? featureAlignmentSeconds : 5 * 60L;
+    }
+
+    @Config("bios.featureAlignmentSeconds")
+    public BiosConfig setFeatureAlignmentSeconds(Long dataAlignmentSeconds)
+    {
+        this.featureAlignmentSeconds = featureAlignmentSeconds;
         return this;
     }
 

@@ -261,8 +261,7 @@ public class BiosRecordCursor
             case COLUMN_PARAM_WINDOW_SIZE_SECONDS:
             case COLUMN_PARAM_QUERY_PERIOD_SECONDS:
             case COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS:
-                throw new TrinoException(GENERIC_USER_ERROR, columnName +
-                        " can only be used in the where clause.");
+                return 0;
 
             default:
                 checkFieldType(field, BIGINT);

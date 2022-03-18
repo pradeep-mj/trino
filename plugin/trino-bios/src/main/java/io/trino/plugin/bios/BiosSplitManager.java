@@ -110,7 +110,10 @@ public class BiosSplitManager
                 // This split has some part in the future. Limit it to the current time (with lag)
                 // to avoid caching non-existent rows for future times.
                 // To get good caching, also align it to a minimum alignment size.
-                final var minimumAlignment = biosConfig.getDataAlignmentSeconds() * 1000;
+                final var minimumAlignment =
+                        (tableHandle.getTableKind() == BiosTableKind.RAW_SIGNAL) ?
+                                biosConfig.getRawSignalAlignmentSeconds() * 1000 :
+                                biosConfig.getFeatureAlignmentSeconds() * 1000;
                 currentSplitSize = BiosClient.floor(end - nextStart, minimumAlignment);
                 if (currentSplitSize == 0) {
                     break;
