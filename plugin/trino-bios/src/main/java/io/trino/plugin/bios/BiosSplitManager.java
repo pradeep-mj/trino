@@ -44,22 +44,6 @@ public class BiosSplitManager
         this.biosClient = requireNonNull(biosClient, "biosClient is null");
     }
 
-    private Long floor(Long toBeFloored, long divisor)
-    {
-        if (toBeFloored == null) {
-            return null;
-        }
-        return divisor * (toBeFloored / divisor);
-    }
-
-    private Long ceiling(Long toBeCeiled, long divisor)
-    {
-        if (toBeCeiled == null) {
-            return null;
-        }
-        return (long) Math.signum(toBeCeiled) * divisor * (((Math.abs(toBeCeiled) - 1) / divisor) + 1);
-    }
-
     @Override
     public ConnectorSplitSource getSplits(
             ConnectorTransactionHandle transaction,
@@ -108,14 +92,14 @@ public class BiosSplitManager
         long splitSize = (tableHandle.getTableKind() == BiosTableKind.SIGNAL) ?
                 biosConfig.getFeatureSplitSizeSeconds() * 1000 :
                 biosConfig.getRawSignalSplitSizeSeconds() * 1000;
-        splitSize = ceiling(splitSize, windowSizeSeconds * 1000);
+        splitSize = BiosClient.ceiling(splitSize, windowSizeSeconds * 1000);
 
         // * Create splits.
         // All splits except possibly the latest one should be perfectly aligned to split size.
         // The latest split should be smaller than the full split size if any part of it is in the
         // future. When deciding what is in the future, also consider the lag time.
 
-        long nextStart = floor(start, splitSize);
+        long nextStart = BiosClient.floor(start, splitSize);
         while (nextStart < end) {
             long currentSplitSize;
             if (nextStart + splitSize <= currentTimeWithLag) {
@@ -127,7 +111,7 @@ public class BiosSplitManager
                 // to avoid caching non-existent rows for future times.
                 // To get good caching, also align it to a minimum alignment size.
                 final var minimumAlignment = biosConfig.getDataAlignmentSeconds() * 1000;
-                currentSplitSize = floor(end - nextStart, minimumAlignment);
+                currentSplitSize = BiosClient.floor(end - nextStart, minimumAlignment);
                 if (currentSplitSize == 0) {
                     break;
                 }

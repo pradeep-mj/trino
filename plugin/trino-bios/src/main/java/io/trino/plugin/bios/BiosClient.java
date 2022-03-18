@@ -250,9 +250,25 @@ public class BiosClient
         };
     }
 
+    public static Long floor(Long toBeFloored, long divisor)
+    {
+        if (toBeFloored == null) {
+            return null;
+        }
+        return divisor * (toBeFloored / divisor);
+    }
+
+    public static Long ceiling(Long toBeCeiled, long divisor)
+    {
+        if (toBeCeiled == null) {
+            return null;
+        }
+        return (long) Math.signum(toBeCeiled) * divisor * (((Math.abs(toBeCeiled) - 1) / divisor) + 1);
+    }
+
     public long getCurrentTimeWithLag(BiosTableHandle tableHandle)
     {
-        long lag = (tableHandle.getTableKind() == BiosTableKind.SIGNAL) ?
+        long lag = (tableHandle.getTableKind() != BiosTableKind.RAW_SIGNAL) ?
                 biosConfig.getFeatureLagSeconds() * 1000 :
                 biosConfig.getRawSignalLagSeconds() * 1000;
         return System.currentTimeMillis() - lag;
@@ -273,6 +289,11 @@ public class BiosClient
             else {
                 start = currentTimeWithLag;
             }
+        }
+
+        // If this is a feature, "snap" it to the window size.
+        if (tableHandle.getTableKind() != BiosTableKind.RAW_SIGNAL) {
+            start = floor(start, getEffectiveWindowSizeSeconds(tableHandle) * 1000);
         }
 
         // Return the lower bound of the time range.

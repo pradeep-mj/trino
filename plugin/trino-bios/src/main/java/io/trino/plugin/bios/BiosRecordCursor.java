@@ -104,7 +104,10 @@ public class BiosRecordCursor
 
     private boolean isWithinRequestedTimeRange(long recordTime)
     {
-        return ((recordTime >= timeRangeStart) && (recordTime < timeRangeEnd));
+        final var matches = (recordTime >= timeRangeStart) && (recordTime < timeRangeEnd);
+        logger.debug("timeRangeStart %d, recordTime %d, timeRangeEnd %d, matches %s",
+                timeRangeStart, recordTime, timeRangeEnd, matches);
+        return matches;
     }
 
     @Override
@@ -140,7 +143,6 @@ public class BiosRecordCursor
                 // Non-windowed results are for contexts, which do not have time range constraints.
                 List<Record> data = new ArrayList<>(response.getRecords());
                 records = data.iterator();
-                logger.debug("     %d records", data.size());
             }
         }
 
@@ -150,20 +152,19 @@ public class BiosRecordCursor
                 // We have no more records left.
                 return false;
             }
-            if (records.hasNext()) {
-                currentRecord = records.next();
-                return true;
-            }
-            else {
+            if (!records.hasNext()) {
                 // This window has run out of records; use the next window that is within the
                 // requested time range and has records.
-                if (moveToNextApplicableWindow()) {
-                    return true;
+                if (!moveToNextApplicableWindow()) {
+                    // There are no more windows, so no more records left.
+                    records = null;
+                    return false;
                 }
-                // There are no more windows, so no more records left.
-                records = null;
-                return false;
             }
+            currentRecord = records.next();
+            logger.debug("selected: %d - %s", currentRecord.getTimestamp(),
+                    currentRecord.attributes());
+            return true;
         }
         else {
             // The non-windowed case is simple - a single list of records.
@@ -186,7 +187,8 @@ public class BiosRecordCursor
             }
             records = currentWindow.getRecords().iterator();
             if (records.hasNext()) {
-                currentRecord = records.next();
+                logger.debug("selected window: %d - %d records",
+                        currentWindow.getWindowBeginTime(), currentWindow.getRecords().size());
                 return true;
             }
         }
@@ -244,6 +246,8 @@ public class BiosRecordCursor
 
             default:
                 checkFieldType(field, BIGINT);
+                logger.debug("returning: %d - %s - %d", currentRecord.getTimestamp(),
+                        currentRecord.attributes(), currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong());
                 return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
         }
     }
