@@ -104,14 +104,31 @@ public class BiosRecordCursor
 
     private boolean isWithinRequestedTimeRange(long recordTime)
     {
-        final var matches = (recordTime >= timeRangeStart) && (recordTime < timeRangeEnd);
-        logger.debug("timeRangeStart %d, recordTime %d, timeRangeEnd %d, matches %s",
-                timeRangeStart, recordTime, timeRangeEnd, matches);
-        return matches;
+        // For raw signals, the window time is set to 0; we need to check the record time instead.
+        if (recordTime == 0) {
+            return true;
+        }
+        return (recordTime >= timeRangeStart) && (recordTime < timeRangeEnd);
     }
 
     @Override
     public boolean advanceNextPosition()
+    {
+        boolean morePresent;
+        boolean matchesTimeRange = false;
+
+        do {
+            morePresent = advanceNextPositionInternal();
+            if (morePresent) {
+                matchesTimeRange = isWithinRequestedTimeRange(currentRecord.getTimestamp());
+            }
+        }
+        while (morePresent && !matchesTimeRange);
+
+        return morePresent;
+    }
+
+    private boolean advanceNextPositionInternal()
     {
         // Run the query if it has not already been run.
         if ((windows == null) && (records == null)) {
@@ -162,8 +179,6 @@ public class BiosRecordCursor
                 }
             }
             currentRecord = records.next();
-            logger.debug("selected: %d - %s", currentRecord.getTimestamp(),
-                    currentRecord.attributes());
             return true;
         }
         else {
@@ -187,8 +202,6 @@ public class BiosRecordCursor
             }
             records = currentWindow.getRecords().iterator();
             if (records.hasNext()) {
-                logger.debug("selected window: %d - %d records",
-                        currentWindow.getWindowBeginTime(), currentWindow.getRecords().size());
                 return true;
             }
         }
@@ -246,8 +259,6 @@ public class BiosRecordCursor
 
             default:
                 checkFieldType(field, BIGINT);
-                logger.debug("returning: %d - %s - %d", currentRecord.getTimestamp(),
-                        currentRecord.attributes(), currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong());
                 return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asLong();
         }
     }
