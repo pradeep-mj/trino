@@ -84,9 +84,6 @@ public class BiosClient
     public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "window_begin_epoch";
     public static final String COLUMN_WINDOW_BEGIN_TIMESTAMP = VIRTUAL_PREFIX + "window_begin_timestamp";
 
-    public static final String MAX_WINDOW_BEGIN_EPOCH = "max(" + COLUMN_WINDOW_BEGIN_EPOCH + ")";
-    public static final String MAX_WINDOW_BEGIN_TIMESTAMP = "max(" + COLUMN_WINDOW_BEGIN_TIMESTAMP + ")";
-
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
     private static final Set<String> aggregates;

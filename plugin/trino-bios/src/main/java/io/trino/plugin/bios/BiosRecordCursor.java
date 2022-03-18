@@ -38,8 +38,6 @@ import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_TIMESTAMP;
-import static io.trino.plugin.bios.BiosClient.MAX_WINDOW_BEGIN_EPOCH;
-import static io.trino.plugin.bios.BiosClient.MAX_WINDOW_BEGIN_TIMESTAMP;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
@@ -240,7 +238,8 @@ public class BiosRecordCursor
                 return currentRecord.getTimestamp();
 
             case COLUMN_WINDOW_BEGIN_EPOCH:
-            case MAX_WINDOW_BEGIN_EPOCH:
+            case "min(" + COLUMN_WINDOW_BEGIN_EPOCH + ")":
+            case "max(" + COLUMN_WINDOW_BEGIN_EPOCH + ")":
                 if (!isWindowed()) {
                     throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_EPOCH +
                             " can only be used for a windowed query.");
@@ -249,7 +248,8 @@ public class BiosRecordCursor
                 return currentWindow.getWindowBeginTime() / 1000;
 
             case COLUMN_WINDOW_BEGIN_TIMESTAMP:
-            case MAX_WINDOW_BEGIN_TIMESTAMP:
+            case "min(" + COLUMN_WINDOW_BEGIN_TIMESTAMP + ")":
+            case "max(" + COLUMN_WINDOW_BEGIN_TIMESTAMP + ")":
                 if (!isWindowed()) {
                     throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_TIMESTAMP +
                             " can only be used for a windowed query.");
@@ -272,8 +272,21 @@ public class BiosRecordCursor
     @Override
     public double getDouble(int field)
     {
-        checkFieldType(field, DOUBLE);
-        return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asDouble();
+        String columnName = columnHandles.get(field).getColumnName();
+
+        switch (columnName.toLowerCase(Locale.getDefault())) {
+            case "avg(" + COLUMN_WINDOW_BEGIN_EPOCH + ")":
+                if (!isWindowed()) {
+                    throw new TrinoException(GENERIC_USER_ERROR, COLUMN_WINDOW_BEGIN_EPOCH +
+                            " can only be used for a windowed query.");
+                }
+                // bios v1 uses milliseconds since epoch, but this virtual column is in seconds.
+                return currentWindow.getWindowBeginTime() / 1000.0;
+
+            default:
+                checkFieldType(field, DOUBLE);
+                return currentRecord.getAttribute(columnHandles.get(field).getColumnName()).asDouble();
+        }
     }
 
     @Override
