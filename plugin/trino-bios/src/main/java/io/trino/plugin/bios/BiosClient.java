@@ -574,6 +574,11 @@ public class BiosClient
 
     public BiosTableHandle getTableHandle(String schemaName, String tableName)
     {
+        // Check whether this table exists.
+        List<AttributeConfig> attributes = getAttributeConfigs(schemaName, tableName);
+        if (attributes == null) {
+            return null;
+        }
         return new BiosTableHandle(schemaName, tableName);
     }
 
@@ -583,52 +588,14 @@ public class BiosClient
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
 
-        BiosTableKind kind;
-        List<AttributeConfig> attributes = null;
-        ImmutableList.Builder<BiosColumnHandle> columns = ImmutableList.builder();
-        String timestampColumnName;
-        String epochColumnName;
-
-        switch (schemaName) {
-            case SCHEMA_SIGNALS:
-            case SCHEMA_RAW_SIGNALS:
-                final String underlyingTableName;
-                if (schemaName.equals(SCHEMA_SIGNALS)) {
-                    kind = BiosTableKind.SIGNAL;
-                    underlyingTableName = tableName;
-                }
-                else {
-                    kind = BiosTableKind.RAW_SIGNAL;
-                    underlyingTableName = removeRawSuffix(tableName);
-                }
-                timestampColumnName = COLUMN_SIGNAL_TIMESTAMP;
-                epochColumnName = COLUMN_SIGNAL_TIME_EPOCH_MS;
-                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
-                    if (!underlyingTableName.equalsIgnoreCase(signalConfig.getName())) {
-                        continue;
-                    }
-                    attributes = signalConfig.getAttributes();
-                    break;
-                }
-                break;
-            case SCHEMA_CONTEXTS:
-                kind = BiosTableKind.CONTEXT;
-                timestampColumnName = COLUMN_CONTEXT_TIMESTAMP;
-                epochColumnName = COLUMN_CONTEXT_TIME_EPOCH_MS;
-                for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
-                    if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
-                        continue;
-                    }
-                    attributes = contextConfig.getAttributes();
-                    break;
-                }
-                break;
-            default:
-                throw new RuntimeException("This should never happen - gap in bios connector");
-        }
+        List<AttributeConfig> attributes = getAttributeConfigs(schemaName, tableName);
         if (attributes == null) {
             return null;
         }
+
+        var tableHandle = new BiosTableHandle(schemaName, tableName);
+        BiosTableKind kind = tableHandle.getTableKind();
+        ImmutableList.Builder<BiosColumnHandle> columns = ImmutableList.builder();
 
         String defaultValue;
         boolean isFirstAttribute = true;
@@ -647,23 +614,68 @@ public class BiosClient
             columns.add(columnHandle);
         }
 
-        if (schemaName.equals(SCHEMA_SIGNALS)) {
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_SECONDS, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
+        switch (schemaName) {
+            case SCHEMA_SIGNALS:
+                columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_SECONDS, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
 
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
-        }
-        else {
-            columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false, null, null));
-            columns.add(new BiosColumnHandle(epochColumnName, BIGINT, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_PARAM_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
+                break;
 
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
+            case SCHEMA_RAW_SIGNALS:
+                columns.add(new BiosColumnHandle(COLUMN_SIGNAL_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_SIGNAL_TIME_EPOCH_MS, BIGINT, null, false, null, null));
+
+                columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
+                break;
+
+            case SCHEMA_CONTEXTS:
+                columns.add(new BiosColumnHandle(COLUMN_CONTEXT_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
+                columns.add(new BiosColumnHandle(COLUMN_CONTEXT_TIME_EPOCH_MS, BIGINT, null, false, null, null));
+                break;
         }
 
         return columns.build();
+    }
+
+    private List<AttributeConfig> getAttributeConfigs(final String schemaName, final String tableName)
+    {
+        List<AttributeConfig> attributes = null;
+
+        switch (schemaName) {
+            case SCHEMA_SIGNALS:
+            case SCHEMA_RAW_SIGNALS:
+                final String underlyingTableName;
+                if (schemaName.equals(SCHEMA_SIGNALS)) {
+                    underlyingTableName = tableName;
+                }
+                else {
+                    underlyingTableName = removeRawSuffix(tableName);
+                }
+                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
+                    if (!underlyingTableName.equalsIgnoreCase(signalConfig.getName())) {
+                        continue;
+                    }
+                    attributes = signalConfig.getAttributes();
+                    break;
+                }
+                break;
+            case SCHEMA_CONTEXTS:
+                for (ContextConfig contextConfig : tenantConfig.get().getContexts()) {
+                    if (!tableName.equalsIgnoreCase(contextConfig.getName())) {
+                        continue;
+                    }
+                    attributes = contextConfig.getAttributes();
+                    break;
+                }
+                break;
+            default:
+                throw new RuntimeException("This should never happen - gap in bios connector");
+        }
+        return attributes;
     }
 
     public boolean isSupportedAggregate(String aggregate)
