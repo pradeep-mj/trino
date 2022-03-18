@@ -105,6 +105,7 @@ public class BiosRecordCursor
     private boolean isWithinRequestedTimeRange(long recordTime)
     {
         // For raw signals, the window time is set to 0; we need to check the record time instead.
+        // For features, the record time is set to null; we need to check the window time instead.
         if (recordTime == 0) {
             return true;
         }
@@ -120,7 +121,13 @@ public class BiosRecordCursor
         do {
             morePresent = advanceNextPositionInternal();
             if (morePresent) {
-                matchesTimeRange = isWithinRequestedTimeRange(currentRecord.getTimestamp());
+                if (currentRecord.getTimestamp() == null) {
+                    // For features, the record time is set to null; window time is already checked.
+                    matchesTimeRange = true;
+                }
+                else {
+                    matchesTimeRange = isWithinRequestedTimeRange(currentRecord.getTimestamp());
+                }
             }
         }
         while (morePresent && !matchesTimeRange);
