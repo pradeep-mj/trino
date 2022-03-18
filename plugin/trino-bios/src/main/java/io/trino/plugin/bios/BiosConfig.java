@@ -171,7 +171,7 @@ public class BiosConfig
 
     public Long getFeatureSplitSizeSeconds()
     {
-        return featureSplitSizeSeconds != null ? featureSplitSizeSeconds : 24 * 60 * 60L;
+        return featureSplitSizeSeconds != null ? featureSplitSizeSeconds : 60 * 60L;
     }
 
     @Config("bios.featureSplitSizeSeconds")

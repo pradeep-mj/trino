@@ -32,8 +32,8 @@ public final class BiosTableHandle
     private Long timeRangeStart;
     private Long timeRangeDelta;
     private Long windowSizeSeconds;
-    private Long queryPeriodMinutes;
-    private Long queryPeriodOffsetMinutes;
+    private Long queryPeriodSeconds;
+    private Long queryPeriodOffsetSeconds;
     private String[] groupBy;
 
     @JsonCreator
@@ -43,8 +43,8 @@ public final class BiosTableHandle
             @JsonProperty("timeRangeStart") Long timeRangeStart,
             @JsonProperty("timeRangeDelta") Long timeRangeDelta,
             @JsonProperty("windowSizeSeconds") Long windowSizeSeconds,
-            @JsonProperty("queryPeriodMinutes") Long queryPeriodMinutes,
-            @JsonProperty("queryPeriodOffsetMinutes") Long queryPeriodOffsetMinutes,
+            @JsonProperty("queryPeriodSeconds") Long queryPeriodSeconds,
+            @JsonProperty("queryPeriodOffsetSeconds") Long queryPeriodOffsetSeconds,
             @JsonProperty("groupBy") String[] groupBy)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
@@ -52,8 +52,8 @@ public final class BiosTableHandle
         this.timeRangeStart = timeRangeStart;
         this.timeRangeDelta = timeRangeDelta;
         this.windowSizeSeconds = windowSizeSeconds;
-        this.queryPeriodMinutes = queryPeriodMinutes;
-        this.queryPeriodOffsetMinutes = queryPeriodOffsetMinutes;
+        this.queryPeriodSeconds = queryPeriodSeconds;
+        this.queryPeriodOffsetSeconds = queryPeriodOffsetSeconds;
         this.groupBy = groupBy;
     }
 
@@ -96,15 +96,15 @@ public final class BiosTableHandle
     }
 
     @JsonProperty
-    public Long getQueryPeriodMinutes()
+    public Long getQueryPeriodSeconds()
     {
-        return queryPeriodMinutes;
+        return queryPeriodSeconds;
     }
 
     @JsonProperty
-    public Long getQueryPeriodOffsetMinutes()
+    public Long getQueryPeriodOffsetSeconds()
     {
-        return queryPeriodOffsetMinutes;
+        return queryPeriodOffsetSeconds;
     }
 
     @JsonProperty
@@ -127,7 +127,7 @@ public final class BiosTableHandle
     public int hashCode()
     {
         return Objects.hash(schemaName, tableName, timeRangeStart, timeRangeDelta,
-                windowSizeSeconds, queryPeriodMinutes, queryPeriodOffsetMinutes,
+                windowSizeSeconds, queryPeriodSeconds, queryPeriodOffsetSeconds,
                 Arrays.hashCode(groupBy));
     }
 
@@ -147,8 +147,8 @@ public final class BiosTableHandle
                 Objects.equals(this.timeRangeStart, other.timeRangeStart) &&
                 Objects.equals(this.timeRangeDelta, other.timeRangeDelta) &&
                 Objects.equals(this.windowSizeSeconds, other.windowSizeSeconds) &&
-                Objects.equals(this.queryPeriodMinutes, other.queryPeriodMinutes) &&
-                Objects.equals(this.queryPeriodOffsetMinutes, other.queryPeriodOffsetMinutes) &&
+                Objects.equals(this.queryPeriodSeconds, other.queryPeriodSeconds) &&
+                Objects.equals(this.queryPeriodOffsetSeconds, other.queryPeriodOffsetSeconds) &&
                 Arrays.equals(this.groupBy, other.groupBy);
     }
 
@@ -160,8 +160,8 @@ public final class BiosTableHandle
                 .add("start", timeRangeStart)
                 .add("delta", timeRangeDelta)
                 .add("window", windowSizeSeconds)
-                .add("period", queryPeriodMinutes)
-                .add("offset", queryPeriodOffsetMinutes)
+                .add("period", queryPeriodSeconds)
+                .add("offset", queryPeriodOffsetSeconds)
                 .add("groupBy", groupBy)
                 .omitNullValues()
                 .toString();

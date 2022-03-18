@@ -73,8 +73,8 @@ public class BiosClient
     public static final String PARAMETER_PREFIX = VIRTUAL_PREFIX + "param_";
 
     public static final String COLUMN_PARAM_WINDOW_SIZE_SECONDS = PARAMETER_PREFIX + "window_size_seconds";
-    public static final String COLUMN_PARAM_QUERY_PERIOD_MINUTES = PARAMETER_PREFIX + "query_period_minutes";
-    public static final String COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES = PARAMETER_PREFIX + "query_period_offset_minutes";
+    public static final String COLUMN_PARAM_QUERY_PERIOD_SECONDS = PARAMETER_PREFIX + "query_period_seconds";
+    public static final String COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS = PARAMETER_PREFIX + "query_period_offset_seconds";
 
     public static final String COLUMN_SIGNAL_TIMESTAMP = VIRTUAL_PREFIX + "event_timestamp";
     public static final String COLUMN_CONTEXT_TIMESTAMP = VIRTUAL_PREFIX + "upsert_timestamp";
@@ -283,8 +283,8 @@ public class BiosClient
             start = tableHandle.getTimeRangeStart();
         }
         else {
-            if (tableHandle.getQueryPeriodOffsetMinutes() != null) {
-                start = currentTimeWithLag - tableHandle.getQueryPeriodOffsetMinutes() * 60 * 1000;
+            if (tableHandle.getQueryPeriodOffsetSeconds() != null) {
+                start = currentTimeWithLag - tableHandle.getQueryPeriodOffsetSeconds() * 1000;
             }
             else {
                 start = currentTimeWithLag;
@@ -320,8 +320,8 @@ public class BiosClient
             delta = tableHandle.getTimeRangeDelta();
         }
         else {
-            if (tableHandle.getQueryPeriodMinutes() != null) {
-                delta = -1000 * 60 * tableHandle.getQueryPeriodMinutes();
+            if (tableHandle.getQueryPeriodSeconds() != null) {
+                delta = -1000 * tableHandle.getQueryPeriodSeconds();
             }
             else {
                 delta = -1000 * biosConfig.getDefaultTimeRangeDeltaSeconds();
@@ -609,8 +609,8 @@ public class BiosClient
             columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_MICROS, null, false, null, null));
 
             columns.add(new BiosColumnHandle(COLUMN_PARAM_WINDOW_SIZE_SECONDS, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_MINUTES, BIGINT, null, false, null, null));
-            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_SECONDS, BIGINT, null, false, null, null));
+            columns.add(new BiosColumnHandle(COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS, BIGINT, null, false, null, null));
         }
         else {
             columns.add(new BiosColumnHandle(timestampColumnName, TIMESTAMP_MICROS, null, false, null, null));

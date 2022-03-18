@@ -55,8 +55,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_MINUTES;
-import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_SECONDS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_WINDOW_SIZE_SECONDS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
@@ -209,8 +209,8 @@ public class BiosMetadata
         Long timeRangeStart = tableHandle.getTimeRangeStart();
         Long timeRangeDelta = tableHandle.getTimeRangeDelta();
         Long windowSizeSeconds = tableHandle.getWindowSizeSeconds();
-        Long queryPeriodMinutes = tableHandle.getQueryPeriodMinutes();
-        Long queryPeriodOffsetMinutes = tableHandle.getQueryPeriodOffsetMinutes();
+        Long queryPeriodSeconds = tableHandle.getQueryPeriodSeconds();
+        Long queryPeriodOffsetSeconds = tableHandle.getQueryPeriodOffsetSeconds();
         boolean somePushdownApplied = false;
         Map<ColumnHandle, Domain> remainingDomains = new HashMap<>();
 
@@ -283,18 +283,18 @@ public class BiosMetadata
                     logger.debug("pushdown filter: windowSizeSeconds %d", windowSizeSeconds);
                     break;
 
-                case COLUMN_PARAM_QUERY_PERIOD_MINUTES:
-                    queryPeriodMinutes = getLongValuePredicate(entry.getValue(),
-                            COLUMN_PARAM_QUERY_PERIOD_MINUTES);
+                case COLUMN_PARAM_QUERY_PERIOD_SECONDS:
+                    queryPeriodSeconds = getLongValuePredicate(entry.getValue(),
+                            COLUMN_PARAM_QUERY_PERIOD_SECONDS);
                     somePushdownApplied = true;
-                    logger.debug("pushdown filter: queryPeriodMinutes %d", queryPeriodMinutes);
+                    logger.debug("pushdown filter: queryPeriodSeconds %d", queryPeriodSeconds);
                     break;
 
-                case COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES:
-                    queryPeriodOffsetMinutes = getLongValuePredicate(entry.getValue(),
-                            COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES);
+                case COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS:
+                    queryPeriodOffsetSeconds = getLongValuePredicate(entry.getValue(),
+                            COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS);
                     somePushdownApplied = true;
-                    logger.debug("pushdown filter: queryPeriodOffsetMinutes %d", queryPeriodOffsetMinutes);
+                    logger.debug("pushdown filter: queryPeriodOffsetSeconds %d", queryPeriodOffsetSeconds);
                     break;
 
                 default:
@@ -315,7 +315,7 @@ public class BiosMetadata
                     new ConstraintApplicationResult<>(
                             new BiosTableHandle(tableHandle.getSchemaName(), tableHandle.getTableName(),
                                     timeRangeStart, timeRangeDelta, windowSizeSeconds,
-                                    queryPeriodMinutes, queryPeriodOffsetMinutes,
+                                    queryPeriodSeconds, queryPeriodOffsetSeconds,
                                     tableHandle.getGroupBy()),
                             remainingFilter,
                             false));
@@ -402,8 +402,8 @@ public class BiosMetadata
         var outTableHandle = new BiosTableHandle(tableHandle.getSchemaName(),
                 tableHandle.getTableName(),
                 tableHandle.getTimeRangeStart(), tableHandle.getTimeRangeDelta(),
-                tableHandle.getWindowSizeSeconds(), tableHandle.getQueryPeriodMinutes(),
-                tableHandle.getQueryPeriodOffsetMinutes(), groupBy);
+                tableHandle.getWindowSizeSeconds(), tableHandle.getQueryPeriodSeconds(),
+                tableHandle.getQueryPeriodOffsetSeconds(), groupBy);
 
         logger.debug("pushdown aggregates: %s,  groupBy: %s", internalAggregateNames,
                 Arrays.toString(groupBy));

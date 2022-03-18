@@ -31,8 +31,8 @@ import java.util.Locale;
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_CONTEXT_TIME_EPOCH_MS;
-import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_MINUTES;
-import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS;
+import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_QUERY_PERIOD_SECONDS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_PARAM_WINDOW_SIZE_SECONDS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
@@ -252,8 +252,8 @@ public class BiosRecordCursor
                 return currentWindow.getWindowBeginTime() * 1000;
 
             case COLUMN_PARAM_WINDOW_SIZE_SECONDS:
-            case COLUMN_PARAM_QUERY_PERIOD_MINUTES:
-            case COLUMN_PARAM_QUERY_PERIOD_OFFSET_MINUTES:
+            case COLUMN_PARAM_QUERY_PERIOD_SECONDS:
+            case COLUMN_PARAM_QUERY_PERIOD_OFFSET_SECONDS:
                 throw new TrinoException(GENERIC_USER_ERROR, columnName +
                         " can only be used in the where clause.");
 
