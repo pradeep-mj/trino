@@ -110,7 +110,9 @@ public class BiosClient
     private final BiosConfig biosConfig;
     private Supplier<Session> session;
     private final Supplier<TenantConfig> tenantConfig;
-    private final NonEvictableLoadingCache<BiosQuery, ISqlResponse> dataCache;
+    private final NonEvictableLoadingCache<BiosQuery, ISqlResponse> contextCache;
+    private final NonEvictableLoadingCache<BiosQuery, ISqlResponse> rawSignalCache;
+    private final NonEvictableLoadingCache<BiosQuery, ISqlResponse> featureCache;
 
     @Inject
     public BiosClient(BiosConfig config)
@@ -128,10 +130,10 @@ public class BiosClient
                 config.getMetadataCacheSeconds(), TimeUnit.SECONDS);
         tenantConfig.get();
 
-        dataCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
-                .maximumWeight(config.getDataCacheSizeInRows())
+        contextCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
+                .maximumWeight(config.getContextCacheSizeInRows())
                 .weigher((Weigher<BiosQuery, ISqlResponse>) (query, response) -> getTotalRows(response))
-                .expireAfterWrite(config.getDataCacheSeconds(), TimeUnit.SECONDS),
+                .expireAfterWrite(config.getContextCacheSeconds(), TimeUnit.SECONDS),
                     new CacheLoader<>() {
                         @Override
                         public ISqlResponse load(final BiosQuery query)
@@ -139,6 +141,31 @@ public class BiosClient
                             return executeInternal(query);
                         }
                     });
+
+        rawSignalCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
+                .maximumWeight(config.getRawSignalCacheSizeInRows())
+                .weigher((Weigher<BiosQuery, ISqlResponse>) (query, response) -> getTotalRows(response))
+                .expireAfterWrite(config.getRawSignalCacheSeconds(), TimeUnit.SECONDS),
+                    new CacheLoader<>() {
+                        @Override
+                        public ISqlResponse load(final BiosQuery query)
+                        {
+                            return executeInternal(query);
+                        }
+                    });
+
+        featureCache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder()
+                .maximumWeight(config.getFeatureCacheSizeInRows())
+                .weigher((Weigher<BiosQuery, ISqlResponse>) (query, response) -> getTotalRows(response))
+                .expireAfterWrite(config.getFeatureCacheSeconds(), TimeUnit.SECONDS),
+                    new CacheLoader<>() {
+                        @Override
+                        public ISqlResponse load(final BiosQuery query)
+                        {
+                            return executeInternal(query);
+                        }
+                    });
+
         // Execute one query to initialize bios SDK metrics.
         getQueryResponse(
                 new BiosQuery(SCHEMA_SIGNALS, "_requests", System.currentTimeMillis(), -300000L,
@@ -368,9 +395,24 @@ public class BiosClient
         }
 
         logger.debug("Request : query");
-        var response = dataCache.getUnchecked(query);
+        NonEvictableLoadingCache<BiosQuery, ISqlResponse> cache;
+        switch (query.getTableKind()) {
+            case CONTEXT:
+                cache = contextCache;
+                break;
+            case RAW_SIGNAL:
+                cache = rawSignalCache;
+                break;
+            case SIGNAL:
+                cache = featureCache;
+                break;
+            default:
+                return null;
+        }
+        var response = cache.getUnchecked(query);
         logger.debug("Response: %d total rows in %d windows", getTotalRows(response),
                 response.getDataWindows().size());
+
         return response;
     }
 

@@ -24,9 +24,6 @@ public class BiosConfig
     private URI url;
     private String email;
     private String password;
-    private Long metadataCacheSeconds;
-    private Long dataCacheSeconds;
-    private Long dataCacheSizeInRows;
     private Long defaultTimeRangeDeltaSeconds;
     private Long defaultWindowSizeSeconds;
     private Long rawSignalLagSeconds;
@@ -34,6 +31,13 @@ public class BiosConfig
     private Long rawSignalSplitSizeSeconds;
     private Long featureSplitSizeSeconds;
     private Long dataAlignmentSeconds;
+    private Long metadataCacheSeconds;
+    private Long contextCacheSeconds;
+    private Long rawSignalCacheSeconds;
+    private Long featureCacheSeconds;
+    private Long contextCacheSizeInRows;
+    private Long rawSignalCacheSizeInRows;
+    private Long featureCacheSizeInRows;
 
     public URI getUrl()
     {
@@ -70,42 +74,6 @@ public class BiosConfig
     public BiosConfig setPassword(String password)
     {
         this.password = password;
-        return this;
-    }
-
-    public Long getMetadataCacheSeconds()
-    {
-        return metadataCacheSeconds != null ? metadataCacheSeconds : 15 * 60L;
-    }
-
-    @Config("bios.metadataCacheSeconds")
-    public BiosConfig setMetadataCacheSeconds(Long metadataCacheSeconds)
-    {
-        this.metadataCacheSeconds = metadataCacheSeconds;
-        return this;
-    }
-
-    public Long getDataCacheSeconds()
-    {
-        return dataCacheSeconds != null ? dataCacheSeconds : 15 * 60L;
-    }
-
-    @Config("bios.dataCacheSeconds")
-    public BiosConfig setDataCacheSeconds(Long dataCacheSeconds)
-    {
-        this.dataCacheSeconds = dataCacheSeconds;
-        return this;
-    }
-
-    public Long getDataCacheSizeInRows()
-    {
-        return dataCacheSizeInRows != null ? dataCacheSizeInRows : 1000 * 1000L;
-    }
-
-    @Config("bios.dataCacheSizeInRows")
-    public BiosConfig setDataCacheSizeInRows(Long dataCacheSizeInRows)
-    {
-        this.dataCacheSizeInRows = dataCacheSizeInRows;
         return this;
     }
 
@@ -190,6 +158,90 @@ public class BiosConfig
     public BiosConfig setDataAlignmentSeconds(Long dataAlignmentSeconds)
     {
         this.dataAlignmentSeconds = dataAlignmentSeconds;
+        return this;
+    }
+
+    public Long getMetadataCacheSeconds()
+    {
+        return metadataCacheSeconds != null ? metadataCacheSeconds : 5 * 60L;
+    }
+
+    @Config("bios.metadataCacheSeconds")
+    public BiosConfig setMetadataCacheSeconds(Long metadataCacheSeconds)
+    {
+        this.metadataCacheSeconds = metadataCacheSeconds;
+        return this;
+    }
+
+    public Long getContextCacheSeconds()
+    {
+        return contextCacheSeconds != null ? contextCacheSeconds : 5 * 60L;
+    }
+
+    @Config("bios.contextCacheSeconds")
+    public BiosConfig setContextCacheSeconds(Long contextCacheSeconds)
+    {
+        this.contextCacheSeconds = contextCacheSeconds;
+        return this;
+    }
+
+    public Long getContextCacheSizeInRows()
+    {
+        return contextCacheSizeInRows != null ? contextCacheSizeInRows : 100 * 1000L;
+    }
+
+    @Config("bios.contextCacheSizeInRows")
+    public BiosConfig setContextCacheSizeInRows(Long contextCacheSizeInRows)
+    {
+        this.contextCacheSizeInRows = contextCacheSizeInRows;
+        return this;
+    }
+
+    public Long getRawSignalCacheSeconds()
+    {
+        return rawSignalCacheSeconds != null ? rawSignalCacheSeconds : 60 * 60L;
+    }
+
+    @Config("bios.rawSignalCacheSeconds")
+    public BiosConfig setRawSignalCacheSeconds(Long rawSignalCacheSeconds)
+    {
+        this.rawSignalCacheSeconds = rawSignalCacheSeconds;
+        return this;
+    }
+
+    public Long getRawSignalCacheSizeInRows()
+    {
+        return rawSignalCacheSizeInRows != null ? rawSignalCacheSizeInRows : 500 * 1000L;
+    }
+
+    @Config("bios.rawSignalCacheSizeInRows")
+    public BiosConfig setRawSignalCacheSizeInRows(Long rawSignalCacheSizeInRows)
+    {
+        this.rawSignalCacheSizeInRows = rawSignalCacheSizeInRows;
+        return this;
+    }
+
+    public Long getFeatureCacheSeconds()
+    {
+        return featureCacheSeconds != null ? featureCacheSeconds : 60 * 60L;
+    }
+
+    @Config("bios.featureCacheSeconds")
+    public BiosConfig setFeatureCacheSeconds(Long featureCacheSeconds)
+    {
+        this.featureCacheSeconds = featureCacheSeconds;
+        return this;
+    }
+
+    public Long getFeatureCacheSizeInRows()
+    {
+        return featureCacheSizeInRows != null ? featureCacheSizeInRows : 100 * 1000L;
+    }
+
+    @Config("bios.featureCacheSizeInRows")
+    public BiosConfig setFeatureCacheSizeInRows(Long featureCacheSizeInRows)
+    {
+        this.featureCacheSizeInRows = featureCacheSizeInRows;
         return this;
     }
 }
