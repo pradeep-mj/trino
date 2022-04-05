@@ -85,6 +85,8 @@ public class BiosMetadata
     @Override
     public List<String> listSchemaNames(ConnectorSession session)
     {
+        logger.debug("session %s, identity %s, principal %s", session, session.getIdentity(),
+                session.getIdentity().getPrincipal());
         return ImmutableList.copyOf(biosClient.getSchemaNames());
     }
 

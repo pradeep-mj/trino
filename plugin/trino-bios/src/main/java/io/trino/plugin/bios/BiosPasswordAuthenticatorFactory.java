@@ -13,23 +13,27 @@
  */
 package io.trino.plugin.bios;
 
-import com.google.common.collect.ImmutableList;
-import io.trino.spi.Plugin;
-import io.trino.spi.connector.ConnectorFactory;
+import io.trino.spi.security.PasswordAuthenticator;
 import io.trino.spi.security.PasswordAuthenticatorFactory;
 
-public class BiosPlugin
-        implements Plugin
+import java.util.Map;
+
+import static java.util.Objects.requireNonNull;
+
+public class BiosPasswordAuthenticatorFactory
+        implements PasswordAuthenticatorFactory
 {
     @Override
-    public Iterable<ConnectorFactory> getConnectorFactories()
+    public String getName()
     {
-        return ImmutableList.of(new BiosConnectorFactory());
+        return "biosAuthenticator";
     }
 
     @Override
-    public Iterable<PasswordAuthenticatorFactory> getPasswordAuthenticatorFactories()
+    public PasswordAuthenticator create(Map<String, String> config)
     {
-        return ImmutableList.of(new BiosPasswordAuthenticatorFactory());
+        requireNonNull(config, "config is null");
+
+        return new BiosPasswordAuthenticator(config);
     }
 }
