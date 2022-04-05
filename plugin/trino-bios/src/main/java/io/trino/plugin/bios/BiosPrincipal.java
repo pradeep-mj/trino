@@ -13,6 +13,8 @@
  */
 package io.trino.plugin.bios;
 
+import io.isima.bios.sdk.Session;
+
 import java.security.Principal;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -21,12 +23,12 @@ public class BiosPrincipal
         implements Principal
 {
     private final String email;
-    private final String password;
+    private final Session session;
 
-    public BiosPrincipal(String email, String password)
+    public BiosPrincipal(String email, Session session)
     {
         this.email = email;
-        this.password = password;
+        this.session = session;
     }
 
     @Override
@@ -40,13 +42,11 @@ public class BiosPrincipal
     {
         return toStringHelper(this)
                 .add("email", email)
-                .add("password", password)
-                .omitNullValues()
                 .toString();
     }
 
-    public String getPassword()
+    public Session getSession()
     {
-        return password;
+        return session;
     }
 }
