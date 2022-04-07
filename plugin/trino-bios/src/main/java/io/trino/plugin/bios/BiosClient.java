@@ -392,7 +392,7 @@ public class BiosClient
                 break;
         }
 
-        logger.debug("Request : query");
+        logger.debug("Request : %s", query);
         NonEvictableLoadingCache<BiosQuery, ISqlResponse> cache;
         switch (query.getTableKind()) {
             case CONTEXT:
