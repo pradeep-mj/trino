@@ -24,6 +24,7 @@ import com.google.inject.Inject;
 import io.airlift.log.Logger;
 import io.isima.bios.models.AttributeConfig;
 import io.isima.bios.models.ContextConfig;
+import io.isima.bios.models.FeatureConfig;
 import io.isima.bios.models.SignalConfig;
 import io.isima.bios.models.TenantConfig;
 import io.isima.bios.models.isql.ISqlResponse;
@@ -89,6 +90,7 @@ public class BiosClient
     private static final Set<String> aggregates;
     public static final String SCHEMA_CONTEXTS = "contexts";
     public static final String SCHEMA_SIGNALS = "signals";
+    public static final String SCHEMA_FEATURES = "features";
     public static final String SCHEMA_RAW_SIGNALS = "raw_signals";
 
     static {
@@ -524,7 +526,7 @@ public class BiosClient
 
     public List<String> getSchemaNames()
     {
-        return ImmutableList.of(SCHEMA_CONTEXTS, SCHEMA_SIGNALS, SCHEMA_RAW_SIGNALS);
+        return ImmutableList.of(SCHEMA_CONTEXTS, SCHEMA_SIGNALS, SCHEMA_FEATURES, SCHEMA_RAW_SIGNALS);
     }
 
     public static String addRawSuffix(String tableName)
@@ -552,6 +554,17 @@ public class BiosClient
             case SCHEMA_SIGNALS:
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     tableNames.add(signalConfig.getName());
+                }
+                break;
+            case SCHEMA_FEATURES:
+                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
+                    if ((signalConfig.getPostStorageStage() != null) &&
+                            (signalConfig.getPostStorageStage().getFeatures() != null)) {
+                        for (FeatureConfig featureConfig :
+                                signalConfig.getPostStorageStage().getFeatures()) {
+                            tableNames.add(signalConfig.getName() + "_" + featureConfig.getName());
+                        }
+                    }
                 }
                 break;
             case SCHEMA_RAW_SIGNALS:
@@ -645,9 +658,13 @@ public class BiosClient
         switch (schemaName) {
             case SCHEMA_SIGNALS:
             case SCHEMA_RAW_SIGNALS:
+            case SCHEMA_FEATURES:
                 final String underlyingTableName;
                 if (schemaName.equals(SCHEMA_SIGNALS)) {
                     underlyingTableName = tableName;
+                }
+                else if (schemaName.equals(SCHEMA_FEATURES)) {
+                    underlyingTableName = tableName.split("_")[0];
                 }
                 else {
                     underlyingTableName = removeRawSuffix(tableName);

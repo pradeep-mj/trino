@@ -16,6 +16,7 @@ package io.trino.plugin.bios;
 import io.trino.spi.TrinoException;
 
 import static io.trino.plugin.bios.BiosClient.SCHEMA_CONTEXTS;
+import static io.trino.plugin.bios.BiosClient.SCHEMA_FEATURES;
 import static io.trino.plugin.bios.BiosClient.SCHEMA_RAW_SIGNALS;
 import static io.trino.plugin.bios.BiosClient.SCHEMA_SIGNALS;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
@@ -24,6 +25,7 @@ public enum BiosTableKind
 {
     CONTEXT,
     SIGNAL,
+    FEATURE,
     RAW_SIGNAL;
 
     public static BiosTableKind getTableKind(String schemaName)
@@ -33,6 +35,8 @@ public enum BiosTableKind
                 return BiosTableKind.CONTEXT;
             case SCHEMA_SIGNALS:
                 return BiosTableKind.SIGNAL;
+            case SCHEMA_FEATURES:
+                return BiosTableKind.FEATURE;
             case SCHEMA_RAW_SIGNALS:
                 return BiosTableKind.RAW_SIGNAL;
             default:
