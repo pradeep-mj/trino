@@ -15,7 +15,6 @@ package io.trino.plugin.bios;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import io.airlift.log.Logger;
 import io.isima.bios.sdk.Bios;
 import io.isima.bios.sdk.Session;
@@ -33,6 +32,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
 
 public class BiosPasswordAuthenticator
@@ -97,19 +97,19 @@ public class BiosPasswordAuthenticator
     @Override
     public Principal createAuthenticatedPrincipal(String user, String password)
     {
-        logger.debug("createAuthenticatedPrincipal %s ...", user);
+        // logger.debug("createAuthenticatedPrincipal %s ...", user);
 
         Session session;
         try {
             // This will throw AccessDeniedException if authentication is not successful.
-            session = sessionCache.getUnchecked(new UserAndPassword(user, password));
+            session = sessionCache.get(new UserAndPassword(user, password));
         }
-        catch (UncheckedExecutionException e) {
+        catch (Exception e) {
             if (e.getCause() instanceof AccessDeniedException) {
                 throw (AccessDeniedException) e.getCause();
             }
             else {
-                throw e;
+                throw new TrinoException(GENERIC_INTERNAL_ERROR, e.getMessage(), e.getCause());
             }
         }
         return new BiosPrincipal(user, session);

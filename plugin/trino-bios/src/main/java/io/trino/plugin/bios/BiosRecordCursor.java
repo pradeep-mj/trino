@@ -38,7 +38,9 @@ import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIMESTAMP;
 import static io.trino.plugin.bios.BiosClient.COLUMN_SIGNAL_TIME_EPOCH_MS;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_EPOCH;
 import static io.trino.plugin.bios.BiosClient.COLUMN_WINDOW_BEGIN_TIMESTAMP;
+import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
+import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -301,7 +303,7 @@ public class BiosRecordCursor
             return Slices.EMPTY_SLICE;
         }
         else {
-            throw new IllegalArgumentException(String.format(
+            throw new TrinoException(GENERIC_INTERNAL_ERROR, String.format(
                     "Expected field %s (%s) to be type VARCHAR or VARBINARY, but is %s", field,
                     columnHandles.get(field).getColumnName(), type));
         }
@@ -310,7 +312,7 @@ public class BiosRecordCursor
     @Override
     public Object getObject(int field)
     {
-        throw new UnsupportedOperationException();
+        throw new TrinoException(NOT_SUPPORTED, "Blobs not supported by bi(OS) yet.");
     }
 
     @Override

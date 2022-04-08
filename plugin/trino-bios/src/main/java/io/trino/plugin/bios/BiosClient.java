@@ -58,6 +58,7 @@ import static io.isima.bios.models.isql.WhereClause.keys;
 import static io.isima.bios.models.isql.Window.tumbling;
 import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static io.trino.spi.StandardErrorCode.GENERIC_USER_ERROR;
+import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
@@ -253,14 +254,14 @@ public class BiosClient
         return () -> {
             TenantConfig tenantConfig;
             try {
-                logger.debug("----------> bios network request : getTenant");
+                logger.info("----------> bios network request : getTenant");
                 tenantConfig = client.getSession().getTenant(true, true);
             }
             catch (BiosClientException e) {
                 client.handleException(e, true);
                 // If handleException did not throw an exception, it means we can retry.
                 try {
-                    logger.debug("retrying ----------> bios network request : getTenant");
+                    logger.info("retrying ----------> bios network request : getTenant");
                     tenantConfig = client.getSession().getTenant(true, true);
                 }
                 catch (BiosClientException e2) {
@@ -269,7 +270,7 @@ public class BiosClient
                 }
             }
 
-            logger.debug("<---------- bios network response: getTenant %s returned %d signals, %d "
+            logger.info("<---------- bios network response: getTenant %s returned %d signals, %d "
                             + "contexts",
                     tenantConfig.getName(), tenantConfig.getSignals().size(),
                     tenantConfig.getContexts().size());
@@ -409,7 +410,18 @@ public class BiosClient
             default:
                 return null;
         }
-        var response = cache.getUnchecked(query);
+        ISqlResponse response;
+        try {
+            response = cache.get(query);
+        }
+        catch (Exception e) {
+            if (e.getCause() instanceof TrinoException) {
+                throw (TrinoException) e.getCause();
+            }
+            else {
+                throw new TrinoException(GENERIC_INTERNAL_ERROR, e.getMessage(), e.getCause());
+            }
+        }
         logger.debug("Response: %d total rows in %d windows", getTotalRows(response),
                 response.getDataWindows().size());
 
@@ -434,7 +446,7 @@ public class BiosClient
                     metrics.add(count());
                     break;
                 default:
-                    throw new TrinoException(GENERIC_USER_ERROR, "Aggregate " + aggregate.getAggregateFunction() +
+                    throw new TrinoException(NOT_SUPPORTED, "Aggregate " + aggregate.getAggregateFunction() +
                             " is not yet supported on this table; use raw signal instead.");
             }
         }
@@ -494,9 +506,9 @@ public class BiosClient
                 return null;
         }
 
-        logger.debug("----------> bios network request : %s", query);
+        logger.info("----------> bios network request : %s", query);
         ISqlResponse response = executeStatement(isqlStatement);
-        logger.debug("<---------- bios network response: query returned %d records, %d windows, "
+        logger.info("<---------- bios network response: query returned %d records, %d windows, "
                         + "%d total rows",
                 response.getRecords().size(), response.getDataWindows().size(), getTotalRows(response));
 
@@ -513,7 +525,7 @@ public class BiosClient
             handleException(e, true);
             // If handleException did not throw an exception, it means we can retry.
             try {
-                logger.debug("retrying ----------> bios network request : query");
+                logger.info("retrying ----------> bios network request : query");
                 response = session.get().execute(statement);
             }
             catch (BiosClientException e2) {
