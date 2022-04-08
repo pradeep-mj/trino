@@ -23,8 +23,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
 import io.airlift.log.Logger;
 import io.isima.bios.models.AttributeConfig;
+import io.isima.bios.models.AttributeType;
 import io.isima.bios.models.ContextConfig;
-import io.isima.bios.models.FeatureConfig;
 import io.isima.bios.models.SignalConfig;
 import io.isima.bios.models.TenantConfig;
 import io.isima.bios.models.isql.ISqlResponse;
@@ -39,7 +39,6 @@ import io.trino.spi.TrinoException;
 import io.trino.spi.type.Type;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -86,12 +85,16 @@ public class BiosClient
     public static final String COLUMN_WINDOW_BEGIN_EPOCH = VIRTUAL_PREFIX + "window_begin_epoch";
     public static final String COLUMN_WINDOW_BEGIN_TIMESTAMP = VIRTUAL_PREFIX + "window_begin_timestamp";
 
+    public static final String SKETCH_FUNCTION_SEPARATOR = "__";
+
     private static final Logger logger = Logger.get(BiosClient.class);
     private static final Map<String, Type> biosTypeMap = new HashMap<>();
     private static final Set<String> aggregates;
+    private static final Set<String> numberTypeSketches;
+    private static final Set<String> anyTypeSketches;
     public static final String SCHEMA_CONTEXTS = "contexts";
     public static final String SCHEMA_SIGNALS = "signals";
-    public static final String SCHEMA_FEATURES = "features";
+    public static final String SCHEMA_SKETCHES = "sketches";
     public static final String SCHEMA_RAW_SIGNALS = "raw_signals";
 
     static {
@@ -101,11 +104,14 @@ public class BiosClient
         biosTypeMap.put("decimal", DOUBLE);
         biosTypeMap.put("blob", VARBINARY);
 
-        aggregates = new HashSet<>(Arrays.asList("sum", "count", "min", "max",
-                "avg", "variance", "stddev", "skewness", "kurtosis", "sum2", "sum3", "sum4",
-                "median", "p0_01", "p0_1", "p1", "p10", "p25", "p50", "p75", "p90", "p99", "p99_9", "p99_99",
-                "distinctcount", "dclb1", "dcub1", "dclb2", "dcub2", "dclb3", "dcub3",
-                "numsamples", "samplingfraction"));
+        aggregates = new HashSet<>(List.of("sum", "count", "min", "max"));
+
+        numberTypeSketches = new HashSet<>(List.of("avg", "median"));
+        anyTypeSketches = new HashSet<>(List.of("distinctcount"));
+        // sketches = new HashSet<>(Arrays.asList(
+        //         "avg", "variance", "stddev", "skewness", "kurtosis", "sum2", "sum3", "sum4",
+        //         "median", "p0_01", "p0_1", "p1", "p10", "p25", "p50", "p75", "p90", "p99", "p99_9", "p99_99",
+        //         "distinctcount", "dclb1", "dcub1", "dclb2", "dcub2", "dclb3", "dcub3"));
     }
 
     private final BiosConfig biosConfig;
@@ -538,7 +544,8 @@ public class BiosClient
 
     public List<String> getSchemaNames()
     {
-        return ImmutableList.of(SCHEMA_CONTEXTS, SCHEMA_SIGNALS, SCHEMA_FEATURES, SCHEMA_RAW_SIGNALS);
+        return ImmutableList.of(SCHEMA_CONTEXTS, SCHEMA_SIGNALS, SCHEMA_RAW_SIGNALS);
+        // return ImmutableList.of(SCHEMA_CONTEXTS, SCHEMA_SIGNALS, SCHEMA_SKETCHES, SCHEMA_RAW_SIGNALS);
     }
 
     public static String addRawSuffix(String tableName)
@@ -564,19 +571,9 @@ public class BiosClient
 
         switch (schemaName) {
             case SCHEMA_SIGNALS:
+            case SCHEMA_SKETCHES:
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     tableNames.add(signalConfig.getName());
-                }
-                break;
-            case SCHEMA_FEATURES:
-                for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
-                    if ((signalConfig.getPostStorageStage() != null) &&
-                            (signalConfig.getPostStorageStage().getFeatures() != null)) {
-                        for (FeatureConfig featureConfig :
-                                signalConfig.getPostStorageStage().getFeatures()) {
-                            tableNames.add(signalConfig.getName() + "_" + featureConfig.getName());
-                        }
-                    }
                 }
                 break;
             case SCHEMA_RAW_SIGNALS:
@@ -621,23 +618,53 @@ public class BiosClient
 
         String defaultValue;
         boolean isFirstAttribute = true;
-        for (AttributeConfig attributeConfig : attributes) {
-            String columnName = attributeConfig.getName();
-            Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
-            if (attributeConfig.getDefaultValue() != null) {
-                defaultValue = attributeConfig.getDefaultValue().asString();
+        if (schemaName.equals(SCHEMA_SKETCHES)) {
+            // For sketches, we need to create one column for every sketch function for
+            // every attribute (m * n columns).
+            for (var sketch : numberTypeSketches) {
+                for (AttributeConfig attributeConfig : attributes) {
+                    if ((attributeConfig.getType() == AttributeType.INTEGER) ||
+                            (attributeConfig.getType() == AttributeType.DECIMAL)) {
+                        String attributeName = attributeConfig.getName();
+                        String columnName = sketch + SKETCH_FUNCTION_SEPARATOR + attributeName;
+                        BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, DOUBLE,
+                                null, false, null, null);
+                        columns.add(columnHandle);
+                    }
+                }
             }
-            else {
-                defaultValue = null;
+            for (var sketch : anyTypeSketches) {
+                for (AttributeConfig attributeConfig : attributes) {
+                    if (attributeConfig.getType() != AttributeType.BLOB) {
+                        String attributeName = attributeConfig.getName();
+                        String columnName = sketch + SKETCH_FUNCTION_SEPARATOR + attributeName;
+                        BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, DOUBLE,
+                                null, false, null, null);
+                        columns.add(columnHandle);
+                    }
+                }
             }
-            BiosColumnHandle columnHandle = new BiosColumnHandle(columnName, columnType,
-                    defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, null, null);
-            isFirstAttribute = false;
-            columns.add(columnHandle);
+        }
+        else {
+            for (AttributeConfig attributeConfig : attributes) {
+                String attributeName = attributeConfig.getName();
+                Type columnType = biosTypeMap.get(attributeConfig.getType().name().toLowerCase(Locale.getDefault()));
+                if (attributeConfig.getDefaultValue() != null) {
+                    defaultValue = attributeConfig.getDefaultValue().asString();
+                }
+                else {
+                    defaultValue = null;
+                }
+                BiosColumnHandle columnHandle = new BiosColumnHandle(attributeName, columnType,
+                        defaultValue, (kind == BiosTableKind.CONTEXT) && isFirstAttribute, null, null);
+                isFirstAttribute = false;
+                columns.add(columnHandle);
+            }
         }
 
         switch (schemaName) {
             case SCHEMA_SIGNALS:
+            case SCHEMA_SKETCHES:
                 columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_TIMESTAMP, TIMESTAMP_SECONDS, null, false, null, null));
                 columns.add(new BiosColumnHandle(COLUMN_WINDOW_BEGIN_EPOCH, BIGINT, null, false, null, null));
 
@@ -669,17 +696,14 @@ public class BiosClient
 
         switch (schemaName) {
             case SCHEMA_SIGNALS:
+            case SCHEMA_SKETCHES:
             case SCHEMA_RAW_SIGNALS:
-            case SCHEMA_FEATURES:
                 final String underlyingTableName;
-                if (schemaName.equals(SCHEMA_SIGNALS)) {
-                    underlyingTableName = tableName;
-                }
-                else if (schemaName.equals(SCHEMA_FEATURES)) {
-                    underlyingTableName = tableName.split("_")[0];
+                if (schemaName.equals(SCHEMA_RAW_SIGNALS)) {
+                    underlyingTableName = removeRawSuffix(tableName);
                 }
                 else {
-                    underlyingTableName = removeRawSuffix(tableName);
+                    underlyingTableName = tableName;
                 }
                 for (SignalConfig signalConfig : tenantConfig.get().getSignals()) {
                     if (!underlyingTableName.equalsIgnoreCase(signalConfig.getName())) {
